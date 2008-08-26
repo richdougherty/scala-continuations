@@ -1,0 +1,5 @@
+# $Id$
+
+An experimental compiler plugin that does a continuation-passing transform on
+methods which have a @cps annotation. Only calls to other @cps methods are
+actually tranformed.
