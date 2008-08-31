@@ -1,0 +1,33 @@
+# $Id$
+
+
+#-Xms256m \
+#-Xmx384m \
+#-server \
+#-Xprof \
+
+java \
+-Xms256m \
+-Xmx384m \
+-Xprof \
+-classpath \
+"$SCALA_HOME"/lib/scala-compiler.jar:\
+"$SCALA_HOME"/lib/scala-library.jar:\
+"$SCALA_HOME"/lib/scala-swing.jar:\
+"$SCALA_HOME"/lib/scala-dbc.jar:\
+"$SCALA_HOME"/lib/scala-partest.jar:\
+target/test-classes/:\
+. \
+\
+\
+-Dscala.home="$SCALA_HOME" \
+\
+"$@"
+
+
+#-Xprof \
+#-Xrunhprof:cpu=samples \
+#-Xdebug -Xrunjdwp:transport=dt_socket,address=8000,server=y,suspend=n \
+#-Dcom.sun.management.jmxremote
+
+#scala -cp $SCALA_HOME/classes/compiler/:target/test-classes/ "$@"

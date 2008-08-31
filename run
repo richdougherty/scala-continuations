@@ -1,7 +1,7 @@
 # $Id$
 
 
-#export SCALA_HOME=/Users/tarq/Downloads/scala-trunk/build/quick/
+#export SCALA_HOME=/Users/tarq/Downloads/scala-trunk/build/pack/
 #export PATH=$SCALA_HOME/bin:$PATH
 
 #clear
@@ -11,18 +11,25 @@ echo === compiling plugin
 mkdir -p target/classes
 mkdir -p target/test-classes
 
-scalac -deprecation -d target/classes -cp $SCALA_HOME/classes/compiler/ src/*.scala
+fsc -deprecation -d target/classes -cp $SCALA_HOME/classes/compiler/ src/*.scala
 
 jar cf target/selectivecps.jar -C misc/ scalac-plugin.xml -C target/classes .
 
 
 echo === compiling test code using plugin
 
-scalac	-Xplugin:target/selectivecps.jar \
-	-Xprint:selectiveanf \
-	-Xprint:selectivecps \
+fsc	-Xplugin:target/selectivecps.jar \
 	-d target/test-classes \
-	test-src/*.scala
+	test-src/Library.scala test-src/$@.scala
+
+#	-Xprint:selectiveanf \
+#	-Xprint:selectivecps \
+#	-Yshow-trees \
+#	-Ybrowse:selectivecps \
+
+#scalac	-Xplugin:target/selectivecps.jar -d target/test-classes test-src/Library.scala test-src/Test4.scala
+
+
 
 
 echo === running compiled test code

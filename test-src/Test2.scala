@@ -17,7 +17,7 @@ object Test2 {
         println(k(i))
       Some("returnvalue")
     }
-
+    
     2 * shift(fun)
   }
 
@@ -30,8 +30,8 @@ object Test2 {
 
   def main(args: Array[String]) {
 
-    val result: Some[String] = reset(testThisCallingMethod())
-    
+    val result: Any = reset(testThisMethod())
+
     println(result)
     
     /*

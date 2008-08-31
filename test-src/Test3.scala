@@ -7,6 +7,7 @@ import scala.collection.mutable._
 
 
 
+
 case class Definator(rule: Rule);
 
 class Rule(val body: PartialFunction[Any, Any]) {

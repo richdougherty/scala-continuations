@@ -7,7 +7,6 @@ import scala.tools.nsc.transform._
 import scala.tools.nsc.symtab._
 import scala.tools.nsc.plugins._
 
-import scala.tools.nsc.ast.TreeBrowsers
 import scala.tools.nsc.ast._
 
 /** 
@@ -18,7 +17,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
   import global._                  // the global environment
   import definitions._             // standard classes and methods
-  import typer.{typed, atOwner}    // methods to type trees
+  import typer.{atOwner}    // methods to type trees
   import posAssigner.atPos         // for filling in tree positions 
 
   /** the following two members override abstract members in Transform */
@@ -31,8 +30,8 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
 
 
-  lazy val Async = definitions.getClass("scala.continuations.cps")
-  lazy val Shift = definitions.getClass("scala.continuations.Shift")
+  lazy val MarkerCPS = definitions.getClass("scala.continuations.cps")
+  lazy val Context = definitions.getClass("scala.continuations.Context")
 
 
   class ANFTransformer(unit: CompilationUnit) extends TypingTransformer(unit) {
@@ -41,23 +40,19 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
       tree match {
         
         case dd @ DefDef(mods, name, tparams, vparams, tpt, rhs)
-        if (dd.symbol.hasAttribute(Async)) =>
+        if (dd.symbol.hasAttribute(MarkerCPS)) =>
 
           log("transforming " + tree.symbol.fullNameString)
 
           val rhs1 = atOwner(dd.symbol) {
-              val (stms1, expr1) = rhs match {
-              case Block(stms, expr) => transBlock(stms, expr)
-              case expr => transBlock(Nil, expr)
-            }
-            typed(Block(stms1, expr1))
+              toExpr(rhs, transTailExpr(rhs))
           }
 
           log("result "+rhs1)
           log("result is of type "+rhs1.tpe)
 
           copy.DefDef(dd, mods, name, tparams, vparams,
-            TypeTree(rhs1.tpe), rhs1)
+            tpt, rhs1)
 
         case _ => 
           super.transform(tree)
@@ -66,64 +61,100 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
 
 
-    def getQualifiedType(tree: Tree): Symbol = {
+    def getQualifiedSymbol(tree: Tree): Symbol = {
 
       // need to find the annotations of a method symbol
-      // probably this function already exists elsewhere
+      // TODO: is there a standard way of doing this?
 
       tree match {
         case Select(qual, name) =>
           
-          val par = getQualifiedType(qual)
+          val par = getQualifiedSymbol(qual)
           if (par != null && par.tpe != null) {
             par.tpe.member(name)
           } else
             tree.symbol
         case TypeApply(fun, args) =>
-          getQualifiedType(fun)
+          getQualifiedSymbol(fun)
         case _ => tree.symbol
 
         // TODO: other cases
       }
     }
 
+    def toExpr(orig: Tree, res: (List[Tree], Tree)) = {
+      res match {
+        case (Nil, b) => b
+        case (a, b) =>
+          copy.Block(orig, a,b)
+      }
+    }
 
-    def transExpr(tree: Tree): (List[Tree], Tree) = {
+
+
+
+    def transTailExpr(tree: Tree): (List[Tree], Tree) = {
       tree match {
-        case Block(stms, expr) => 
-          transBlock(stms, expr)
-
-        case ValDef(mods, name, tptTre, rhs) =>
-          val (stms, anfRhs) = transExpr(rhs)
-          (stms, typed(ValDef(tree.symbol, anfRhs)))
-          
-        case Select(qual, name) =>
-          val (stms, expr) = transExpr(qual)
-          (stms, Select(expr, name))
-
-        case TypeApply(fun, args) =>
-          val (stms, expr) = transExpr(fun)
-          (stms, TypeApply(fun, args))
-
         case Apply(fun, args) =>
           val (funStm, funExpr) = transExpr(fun)
           val (argStm, argExpr) = List.unzip(for (a <- args) yield transExpr(a))
 
-          if (getQualifiedType(fun).hasAttribute(Async)) {
+          (funStm ::: List.flatten(argStm), copy.Apply(tree, funExpr, argExpr))
+        case _ =>
+          transExpr(tree)
+      }
+    }
+      
+    def transExpr(tree: Tree): (List[Tree], Tree) = {
+      tree match {
+        case Block(stms, expr) => 
+          val (a, b) = transBlock(stms, expr)
+          (Nil, copy.Block(tree, a, b))
+
+        case ValDef(mods, name, tptTre, rhs) =>
+          val (stms, anfRhs) = transExpr(rhs)
+          (stms, copy.ValDef(tree, mods, name, tptTre, anfRhs))
+
+        // FIXME: if valdef is already marked, don't translate it again
+          
+        case Select(qual, name) =>
+          val (stms, expr) = transExpr(qual)
+          (stms, copy.Select(tree, expr, name))
+
+        case If(cond, thenp, elsep) =>
+          val (condStats, condVal) = transExpr(cond)
+          val thenVal = toExpr(thenp, transTailExpr(thenp))
+          val elseVal = toExpr(elsep, transTailExpr(elsep))
+
+          (condStats, copy.If(tree, condVal, thenVal, elseVal))
+
+        case TypeApply(fun, args) =>
+          val (stms, expr) = transExpr(fun)
+          (stms, copy.TypeApply(tree, expr, args))
+
+        case Apply(fun, args) =>
+          val (funStm, funExpr) = transExpr(fun)
+          val (argStm, argExpr) = List.unzip(for (a <- args) yield transExpr(a))
+          
+          // TODO: use transTailExpr for call-by-name parameters
+
+          if (getQualifiedSymbol(fun).hasAttribute(MarkerCPS)) {
 
             log("found apply of "+fun+", which is marked")
+            log("result of application has type " + tree.tpe)
             
             val sym = currentOwner.newValue(tree.pos, unit.fresh.newName(tree.pos, "tmp"))
                         .setInfo(tree.tpe)
                         .setFlag(Flags.SYNTHETIC)
-                        .setAttributes(List(AnnotationInfo(Async.tpe, Nil, Nil)))
+                        .setAttributes(List(AnnotationInfo(MarkerCPS.tpe, Nil, Nil)))
           
             (funStm ::: List.flatten(argStm) ::: 
-               List(ValDef(sym, Apply(funExpr, argExpr))), Ident(sym))
+               List(ValDef(sym, copy.Apply(tree, funExpr, argExpr)) setType(NoType)),
+               Ident(sym) setType(tree.tpe))
 
           } else {
 
-            (funStm ::: List.flatten(argStm), Apply(funExpr, argExpr))
+            (funStm ::: List.flatten(argStm), copy.Apply(tree, funExpr, argExpr))
           
           }
 
@@ -139,7 +170,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
       stms match {
         case Nil =>
-          transExpr(expr)
+          transTailExpr(expr)
 
         case stm::rest =>
           val (headStm, headExpr) = transExpr(stm)
