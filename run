@@ -18,7 +18,7 @@ jar cf target/selectivecps.jar -C misc/ scalac-plugin.xml -C target/classes .
 
 echo === compiling test code using plugin
 
-fsc	-Xplugin:target/selectivecps.jar \
+scalac	-Xplugin:target/selectivecps.jar \
 	-d target/test-classes \
 	test-src/Library.scala test-src/$@.scala
 
