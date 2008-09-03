@@ -18,23 +18,16 @@ object Test2 {
   // can only find out params 2 and 3 by
   // looking at method body
 
+  @cps def methA(): Int @cpstypes[String, Some[String]] = {
 
-  @cps def methA() = {
-    
-
-    2 * shift((k:Int=>String) => { 
-
-      println(k(1))
-      println(k(2))
-      println(k(3))
-      println(k(4))
-
+    def fun(k:Int=>String) = {
+      for (i<-List(1,2,3,4)) 
+        println(k(i))
       Some("returnvalue")
-    })
-
+    }
+    
+    shift(fun) * 2
   }
-
-
 
   // type before translation:
   //
@@ -48,17 +41,14 @@ object Test2 {
   // after translation, which depends on methA's
   // body, not just the signature.
 
+  @cps def methB(): String @cpstypes[String, Some[String]] = {
 
-  @cps def methB() = {
-    
     "   +++ " + methA().toString()
-    
   }
-
 
   def main(args: Array[String]) {
 
-    val result: Some[String] = reset(methB())
+    val result = reset(stronglyTyped[String,String,Any](methB()))
 
     println(result)
 
@@ -72,6 +62,13 @@ object Test2 {
     //     (not easy to do, problems with hof's)
     //   - use annotations @cps[A,B], possibly with
     //     default case @cps = @cps[Unit,Unit]
+    //
+    // Chose option #3, but with additional annotation 
+    // attached to the result type. Reason: type vars are
+    // not accessible in method annotation.
+    // There is a shorthand, though: With @cps[A], the
+    // 2nd parameter can be given.
+    // And we use Any,Any as default case, not Unit.
 
     
     /*

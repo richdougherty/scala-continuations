@@ -2,24 +2,23 @@
 
 package scala.continuations
 
-class cps extends Annotation {
+class cps[-B] extends Annotation {
 }
 
 class uncps extends Annotation {
 }
 
-
-trait Context[A] {
-  def map[B](f: (A => B)): Context[B]
-  def flatMap[B](f: (A => Context[B])): Context[B]
+class cpstypes[-B,+C] extends TypeConstraint {
 }
 
-final class Shift[A,B,C](val fun: (A => B) => C) extends Context[A] {
-  override final def map[D](f: (A => D)) = {
+
+
+final class Shift[+A,-B,+C](val fun: (A => B) => C) {
+  final def map[D](f: (A => D)) = {
     new Shift((g:(D => B)) => fun((x:A) => g(f(x))))
   }
-  override final def flatMap[D](f: (A => Context[D])) = {
-    new Shift((g:(D => B)) => fun((x:A) => f(x).asInstanceOf[Shift[D,B,B]].fun(g)))
+  final def flatMap[D,E<:B](f: (A => Shift[D,E,B])): Shift[D,E,C] = {
+    new Shift((g:(D => E)) => fun((x:A) => f(x).fun(g)))
   }
 }
 
@@ -31,29 +30,35 @@ final class Shift[A,B,C](val fun: (A => B) => C) extends Context[A] {
 
 object CPS {
 
+  type Context[A] = Shift[A,Any,Any]
+  
+  // at compile-time, these are removed
 
-  // at compile-time, methods marked @uncps are tranformed
-  // becoming the identity function
+  @uncps implicit def shift2val[A,B,C](x: =>Shift[A,B,C]): A @cpstypes[B,C] = {
+    x.asInstanceOf[A @cpstypes[B,C]]
+  }
 
-
-  @uncps def shift2val[A,B,C](x: Shift[A,B,C]): A = {
-    x.asInstanceOf[A]
+  @uncps implicit def val2shift[A](x: =>A): Shift[A,A,Any] = {
+    x.asInstanceOf[Shift[A,A,Any]]
   }
 
 
-  @uncps def val2shift[A,B,C](x: A): Shift[A,B,C] = {
+  @uncps def stronglyTyped[A,B,C](x: =>A @cpstypes[B,C]): Shift[A,B,C] = {
     x.asInstanceOf[Shift[A,B,C]]
   }
 
-
   // methods marked @cps will return Context[A] instead of A
 
-  @cps def shift[A,B,C](fun: (A => B) => C):A = {
-    shift2val[A,B,C](new Shift[A,B,C](fun))
+  @cps def shift[A,B,C](fun: (A => B) => C): Shift[A,B,C] = {
+    new Shift[A,B,C](fun)
   }
 
-  def reset[A,C](/*@uncps */ctx: A):C = {
-    val2shift[A,A,C](ctx).fun((x:A) => x)
+  def reset[A,C](ctx: =>Shift[A,A,C]):C = {
+    ctx.fun((x:A) => x)
   }
 
+  def spawn[A,C](ctx: =>Shift[A,Unit,C]):C = {
+    ctx.fun((x:A) => ())
+  }
+  
 }

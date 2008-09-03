@@ -6,6 +6,8 @@ import scala.continuations.CPS._
 import scala.collection.mutable._
 
 
+// FIXME: breaks with current version, there seems to be a
+// problem with case classes in selectiveanf
 
 
 case class Definator(rule: Rule);

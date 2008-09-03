@@ -29,9 +29,10 @@ class SelectiveCPSTransformPlugin(val global: Global) extends Plugin {
       val runsAfter = "selectiveanf"
     }
   )
-//  val checker = new CPSAnnotationChecker {
-//    val global: SelectiveCPSTransformPlugin.this.global.type = SelectiveCPSTransformPlugin.this.global
-//  }
-//  global.addAnnotationChecker(checker.checker)
+
+  val checker = new CPSAnnotationChecker {
+    val global: SelectiveCPSTransformPlugin.this.global.type = SelectiveCPSTransformPlugin.this.global
+  }
+  global.addAnnotationChecker(checker.checker)
 
 }

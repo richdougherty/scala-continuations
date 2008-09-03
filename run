@@ -19,13 +19,21 @@ jar cf target/selectivecps.jar -C misc/ scalac-plugin.xml -C target/classes .
 echo === compiling test code using plugin
 
 scalac	-Xplugin:target/selectivecps.jar \
+	-Xprint:selectiveanf \
+	-Xprint:selectivecps \
+	-Ycheck:selectivecps \
+	-Ycheck:superaccessors \
+	-explaintypes \
 	-d target/test-classes \
 	test-src/Library.scala test-src/$@.scala
 
+#	-Xprint-types \
+#	-explaintypes \
 #	-Xprint:selectiveanf \
 #	-Xprint:selectivecps \
 #	-Yshow-trees \
 #	-Ybrowse:selectivecps \
+#   -Ycheck:superaccessors \
 
 #scalac	-Xplugin:target/selectivecps.jar -d target/test-classes test-src/Library.scala test-src/Test4.scala
 

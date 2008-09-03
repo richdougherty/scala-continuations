@@ -17,7 +17,7 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 
   import global._                  // the global environment
   import definitions._             // standard classes and methods
-  import typer.{atOwner}           // methods to type trees
+  import typer.{typed,atOwner}           // methods to type trees
   import posAssigner.atPos         // for filling in tree positions 
 
   /** the following two members override abstract members in Transform */
@@ -31,8 +31,9 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 
 
   lazy val MarkerCPS = definitions.getClass("scala.continuations.cps")
+  lazy val MarkerCPSTypes = definitions.getClass("scala.continuations.cpstypes")
   lazy val MarkerUnCPS = definitions.getClass("scala.continuations.uncps")
-  lazy val Context = definitions.getClass("scala.continuations.Context")
+  lazy val Context = definitions.getClass("scala.continuations.Shift")
 
 
 
@@ -66,16 +67,11 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 */
 
 
-    def getReturnType(tpe: Type): Type = tpe match {
-      case PolyType(a,b) => getReturnType(b)
-      case MethodType(a,b) => b
-
-      // FIXME: more cases?
-    }
-
     def updateReturnType(tpe: Type, rhs: (Type => Type)): Type = tpe match {
       case PolyType(a,b) => PolyType(a, updateReturnType(b,rhs))
       case MethodType(a,b) => MethodType(a, rhs(b))
+//      case NoType => tpe // TODO: huh???
+//      case _ => rhs(tpe) // TODO: huh???
 
       // FIXME: more cases?
     }
@@ -100,32 +96,51 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
     
     if (sym.isMethod && sym.hasAttribute(MarkerCPS)) {
       
-      log("transformInfo called for cps annotated method " + sym + "/" + tp)
+      println("transformInfo called for cps annotated method " + sym + "/" + tp)
       
-      updateReturnType(tp, (r:Type) => appliedType(Context.tpe, List(r)))
+      updateReturnType(tp, returnTypeForMethod(sym))
       
-    } else if (sym.isMethod && sym.hasAttribute(MarkerUnCPS)) {
-
-      log("transformInfo called for uncps annotated method " + sym + "/" + tp)
-      
-      updateReturnTypeFromArgs(tp, (r:List[Type]) => r(0))
-
-    } else if (sym.isValue && sym.hasAttribute(MarkerCPS)) {
-
-      log("transformInfo called for cps annotated value " + sym + "/" + tp)
-
-      tp
-
-    } else if (sym.isValue && sym.hasAttribute(MarkerUnCPS)) {
-
-      log("transformInfo called for uncps annotated value " + sym + "/" + tp)
-
-      appliedType(Context.tpe, List(tp))
     } else {
      tp
     }
   }
 
+
+  def returnTypeForMethod(sym: Symbol)(tp: Type): Type = {
+    if (!sym.hasAttribute(MarkerCPS)) 
+      return tp
+    
+    // if the symbol already has a transformed type, choose that
+    
+    if (tp.typeSymbol == Context)
+      return tp
+
+    // otherwise, start with hard-coded defaults
+
+    var res = AnyClass.tpe  // TODO: are these reasonable?
+    var outer = AnyClass.tpe
+
+
+    // look at method attribute and possibly get res from there
+
+    sym.attributes.foreach {
+      case AnnotationInfo(an, args, param) if an.typeSymbol == MarkerCPS => 
+        res = an.typeArgs(0)
+      case _ =>
+    }
+
+    // now consider attribute on the return type
+  
+    tp.attributes.foreach {
+      case AnnotationInfo(an, args, param) if an.typeSymbol == MarkerCPSTypes => 
+        res = an.typeArgs(0)
+        outer = an.typeArgs(1)
+      case _ =>
+    }
+  
+    // TODO: correct to remove attributes?
+    appliedType(Context.tpe, List(tp.withoutAttributes, res, outer))
+  }
 
 
 
@@ -133,71 +148,64 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 
   class CPSTransformer(unit: CompilationUnit) extends TypingTransformer(unit) {
 
-    override def transform(tree: Tree): Tree = atPhase(phase.next) {
+    override def transform(tree: Tree): Tree = atPhase(phase.next) { 
+      postTransform(mainTransform(tree))
+    }
+
+    // not used for now
+
+    def postTransform(tree: Tree): Tree = {
+      tree
+/*
+      if (tree.tpe ne null)
+        tree.setType(transformInfo(currentOwner, tree.tpe))
+      else
+        tree
+*/
+    }
+    
+    def mainTransform(tree: Tree): Tree = {
       tree match {
 
-        case dd @ DefDef(mods, name, tparams, vparams, tpt, rhs)
-        if (dd.symbol.hasAttribute(MarkerUnCPS)) =>
+        case Apply(fun, expr)
+        if (tree.symbol.hasAttribute(MarkerUnCPS)) =>  //just remove them!
+          // TODO: assert expr.length == 1
+          transform(expr(0))
 
-          log("transforming to id function: " + tree.symbol.fullNameString)
-
-          val rhs1 =  atOwner(dd.symbol) {
-             vparams match {
-               case List(List(vd @ ValDef(mods, name, tpt, _))) =>
-                localTyper.typed(Ident(vd.symbol))
-             }
-          }
-
-          log("result "+rhs1)
-          log("result is of type "+rhs1.tpe)
-          log("method symbol was of type "+dd.symbol.tpe)
-
-	        copy.DefDef(dd, mods, name, tparams, vparams, tpt, rhs1)
-	  
-        case Block(stms, expr) => 
-        
-          // TODO: should we require to be in a @cps annotated method?
-        
-	        val (stms1, expr1) = transBlock(stms, expr)
-          copy.Block(tree, stms1, expr1)
-
-/*
         case dd @ DefDef(mods, name, tparams, vparams, tpt, rhs)
         if (dd.symbol.hasAttribute(MarkerCPS)) =>
 
-          log("transforming " + tree.symbol.fullNameString)
+          println("transforming method: " + tree.symbol.fullNameString)
 
-          val rhs1 = atOwner(dd.symbol) {
-              val (stms1, expr1) = rhs match {
-              case Block(stms, expr) => transBlock(stms, expr)
-              case expr => transBlock(Nil, expr)
-            }
-            localTyper.typed(Block(stms1, expr1))
+          val methTpe = returnTypeForMethod(dd.symbol)(tpt.tpe)
+
+//          val rhs1 = atOwner(dd.symbol) { localTyper.typed(resetAttrs(transform(rhs))) }
+//          val rhs1 =  atOwner(dd.symbol) { localTyper.typed(transform(rhs)) }
+          val rhs1 =  atOwner(dd.symbol) { transform(rhs) }
+
+//          println("result (of "+dd.symbol+"): "+rhs1)
+          println("result is of type "+rhs1.tpe)
+          println("method symbol is of type "+dd.symbol.tpe)
+          println("method tpt "+tpt)
+
+          val expect = if (dd.symbol.isConstructor) UnitClass.tpe else methTpe
+
+          if (!(rhs1.tpe <:< expect)) {
+            // TODO: is there a more general way to present a type error?
+            unit.warning(rhs.pos, "right hand side of type "+rhs1.tpe+
+                " does not conform to declared return type "+expect)
           }
 
-          log("result "+rhs1)
-          log("result is of type "+rhs1.tpe)
-          log("method symbol was of type "+dd.symbol.tpe)
-          
-// *
-          def updateReturnType(tpe: Type, rhs: Type): Type = tpe match {
-            case PolyType(a,b) => PolyType(a, updateReturnType(b,rhs))
-            case MethodType(a,b) => MethodType(a, rhs)
+	        copy.DefDef(dd, mods, name, tparams, vparams, TypeTree(methTpe).setPos(tpt.pos), rhs1) 
 
-            // FIXME: more cases?
-          }
-// * /
+        case Block(stms, expr) => 
+        
+          // TODO: should we require to be in a @cps annotated method?
+	        val (stms1, expr1) = transBlock(stms, expr)
+          copy.Block(tree, stms1, expr1).setType(expr1.tpe)
 
- //         dd.symbol.updateInfo(updateReturnType(dd.symbol.tpe, rhs1.tpe))
-
-//          log("method symbol updated to type "+dd.symbol.tpe)
-
-          copy.DefDef(dd, mods, name, tparams, vparams, 
-            TypeTree(rhs1.tpe), rhs1)
-
-*/
         case _ => 
-          super.transform(tree)
+          super.transform(tree)//.setType(null)
       }
     }
 
@@ -209,30 +217,21 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
         case Nil =>
           (Nil, transform(expr))
 
-
         case stm::rest =>
 
           stm match {
             case vd @ ValDef(mods, name, tpt, rhs)
-            if (vd.symbol.hasAttribute(MarkerUnCPS)) =>
-              
-              log("found negative ValDef "+name+" of type " + vd.symbol.tpe)
-
-              // TODO: needed at all?
-
-              val (a, b) = transBlock(rest, expr)
-              (transform(stm)::a, b)
-              
-            case vd @ ValDef(mods, name, tpt, rhs)
             if (vd.symbol.hasAttribute(MarkerCPS)) =>
 
-              log("found marked ValDef "+name+" of type " + vd.symbol.tpe)
+              println("found marked ValDef "+name+" of type " + vd.symbol.tpe)
 
-      	      val tpe = rhs.tpe
+      	      val tpe = vd.symbol.tpe
 
-      	      val rhs1 = localTyper.typed(resetAttrs(rhs))
+//    	        val rhs1 = transform(rhs)
+    	        val rhs1 = localTyper.typed(resetAttrs(transform(rhs))) // FIXME: can do without resetAttrs?
 
-      	      log("right hand side " + rhs1 + " has type " + rhs1.tpe)
+      	      println("valdef symbol " + vd.symbol + " has type " + tpe)
+      	      println("right hand side " + rhs1 + " has type " + rhs1.tpe)
 
       	      log("currentOwner: " + currentOwner)
       	      log("currentMethod: " + currentMethod)
@@ -245,7 +244,8 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 
               val body = {
                 val (a, b) = transBlock(rest, expr)
-                resetAttrs(Block(a, b))
+                resetAttrs(Block(a, b)) // FIXME: can we do without?
+//                Block(a, b)
               }
               
               new TreeSymSubstituter(List(vd.symbol), List(arg)).traverse(body)
@@ -269,33 +269,34 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 //            sym.setInfo(fun.tpe) // TODO: not needed?
               
 
-//	          val sym = fun.symbol
+	            val sym = fun.symbol
+	            arg.owner = sym
 
-//	          arg.owner = sym
+              new ChangeOwnerTraverser(currentMethod, sym).traverse(body)
 
-//            new ChangeOwnerTraverser(currentMethod, sym).traverse(fun)
-//	          sym.owner = currentMethod
 
-      	      log("fun.symbol: "+fun.symbol)
-      	      log("fun.symbol.owner: "+fun.symbol.owner)
-      	      log("arg.owner: "+arg.owner)
+      	      println("fun.symbol: "+fun.symbol)
+      	      println("fun.symbol.owner: "+fun.symbol.owner)
+      	      println("arg.owner: "+arg.owner)
 
               
-              log("fun.tpe:"+fun.tpe)
-              log("return type of fun:"+body.tpe)
+              println("fun.tpe:"+fun.tpe)
+              println("return type of fun:"+body.tpe)
               
               var methodName = "map"
               
+              // FIXME: better reporting of type errors?
+              
               if (body.tpe != null) {
-                if (isSubType(body.tpe.typeSymbol.tpe, Context.tpe))
+                if (body.tpe.typeSymbol.tpe <:< Context.tpe)
                   methodName = "flatMap"
               }
               else
-                error("Cannot compute type for transformed function result")
+                unit.error(rhs.pos, "cannot compute type for CPS-transformed function result")
               
               log("will use method:"+methodName)
               
-              val applied = localTyper.typed(Apply(
+              val applied = atPos(vd.symbol.pos) { localTyper.typed(Apply(
                 Select(
 		              rhs1,
                   rhs1.tpe.member(methodName)
@@ -303,7 +304,7 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
                 List(
                   fun
                 )
-              ))
+              ))}
               
               (Nil, applied)
 
