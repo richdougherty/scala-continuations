@@ -70,10 +70,8 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
     def updateReturnType(tpe: Type, rhs: (Type => Type)): Type = tpe match {
       case PolyType(a,b) => PolyType(a, updateReturnType(b,rhs))
       case MethodType(a,b) => MethodType(a, rhs(b))
-//      case NoType => tpe // TODO: huh???
-//      case _ => rhs(tpe) // TODO: huh???
 
-      // FIXME: more cases?
+      // TODO: more cases?
     }
     
     def updateReturnTypeFromArgs(tpe: Type, rhs: (List[Type] => Type)): Type = 
@@ -81,29 +79,13 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
       case PolyType(a,b) => PolyType(a, updateReturnTypeFromArgs(b,rhs))
       case MethodType(a,b) => MethodType(a, rhs(a))
 
-      // FIXME: more cases?
+      // TODO: more cases?
     }
 
 
 
 
 
-
-
-  /** - return symbol's transformed type, 
-   */
-  def transformInfo(sym: Symbol, tp: Type): Type = {
-    
-    if (sym.isMethod && sym.hasAttribute(MarkerCPS)) {
-      
-      println("transformInfo called for cps annotated method " + sym + "/" + tp)
-      
-      updateReturnType(tp, returnTypeForMethod(sym))
-      
-    } else {
-     tp
-    }
-  }
 
 
   def returnTypeForMethod(sym: Symbol)(tp: Type): Type = {
@@ -144,6 +126,24 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 
 
 
+  /** - return symbol's transformed type, 
+   */
+  def transformInfo(sym: Symbol, tp: Type): Type = {
+    
+    if (sym.isMethod && sym.hasAttribute(MarkerCPS)) {
+      
+      log("transformInfo called for cps annotated method " + sym + "/" + tp)
+      
+      updateReturnType(tp, returnTypeForMethod(sym))
+      
+    } else {
+     tp
+    }
+  }
+
+
+
+
 
 
   class CPSTransformer(unit: CompilationUnit) extends TypingTransformer(unit) {
@@ -152,18 +152,78 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
       postTransform(mainTransform(tree))
     }
 
-    // not used for now
+
+    class ShallowTraverser(maxDepth:Int) extends Traverser {
+      var curDepth = 0
+      override def traverse(t: Tree) {
+        if (curDepth < maxDepth) {
+          val saveDepth = curDepth
+          curDepth += 1
+          super.traverse(t)
+          curDepth = saveDepth
+        }
+      }
+    }
+
+
 
     def postTransform(tree: Tree): Tree = {
-      tree
-/*
-      if (tree.tpe ne null)
-        tree.setType(transformInfo(currentOwner, tree.tpe))
-      else
-        tree
-*/
+
+        // basic idea:
+        //
+        // Annotated methods will change their signatures. Thus, uses of
+        // these methods will also need to be retyped, as well as the
+        // enclosing terms the uses occur in.
+        //
+        // We use a mark&sweep approach: Any term that embodies another
+        // term with type null will also get its type set to null.
+        // By post-order traversal, we work our way outwards from
+        // the terms referencing annotated methods, so we need to
+        // only check the directly enclosed terms at each level
+        // (avoiding exponential blowup).
+        // The sweeping happens at definition sites, where the terms
+        // are retyped using localTyper.typed()
+
+        var nullTermsFound = false
+
+        val check = new ShallowTraverser(1) {
+          override def traverse(t: Tree) {
+            if ((curDepth == 1) && (t.isTerm) && (t.tpe == null)) {
+  //          if (curDepth == 1 && t.tpe == null) {
+              log("found null-type tree " + t)
+              nullTermsFound = true
+            }
+            super.traverse(t);
+          }
+        }
+      
+        check(tree)
+      
+        if (tree.isTerm && tree.tpe != null) {
+          if (nullTermsFound) {
+            log("will reset type for " + tree + " / " + tree.tpe)
+            tree.tpe = null
+          }
+          tree
+        } else if (tree.isDef) {
+          if (nullTermsFound) {
+            log("will re-type def " + tree + " / " + tree.tpe)
+            tree.tpe = null
+            localTyper.typed(tree)
+          } else {
+            tree
+          }
+        } else {
+          tree
+        }
+        
     }
     
+
+
+
+
+
     def mainTransform(tree: Tree): Tree = {
       tree match {
 
@@ -172,21 +232,27 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
           // TODO: assert expr.length == 1
           transform(expr(0))
 
-        case dd @ DefDef(mods, name, tparams, vparams, tpt, rhs)
-        if (dd.symbol.hasAttribute(MarkerCPS)) =>
+        case Ident(_) | Select(_, _)
+        if (tree.symbol.hasAttribute(MarkerCPS)) =>
+          log("translating ref to method: " + tree)
+          super.transform(tree).setType(null) // mark term for re-typing
 
-          println("transforming method: " + tree.symbol.fullNameString)
+
+        case dd @ DefDef(mods, name, tparams, vparams, tpt, rhs)
+        if (tree.symbol.hasAttribute(MarkerCPS)) =>
+
+          log("transforming method: " + tree.symbol.fullNameString)
 
           val methTpe = returnTypeForMethod(dd.symbol)(tpt.tpe)
 
 //          val rhs1 = atOwner(dd.symbol) { localTyper.typed(resetAttrs(transform(rhs))) }
 //          val rhs1 =  atOwner(dd.symbol) { localTyper.typed(transform(rhs)) }
-          val rhs1 =  atOwner(dd.symbol) { transform(rhs) }
+          val rhs1 =  atOwner(dd.symbol) { localTyper.typed(transform(rhs)) }
 
-//          println("result (of "+dd.symbol+"): "+rhs1)
-          println("result is of type "+rhs1.tpe)
-          println("method symbol is of type "+dd.symbol.tpe)
-          println("method tpt "+tpt)
+//          log("result (of "+dd.symbol+"): "+rhs1)
+          log("result is of type "+rhs1.tpe)
+          log("method symbol is of type "+dd.symbol.tpe)
+          log("method tpt "+tpt)
 
           val expect = if (dd.symbol.isConstructor) UnitClass.tpe else methTpe
 
@@ -223,15 +289,16 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
             case vd @ ValDef(mods, name, tpt, rhs)
             if (vd.symbol.hasAttribute(MarkerCPS)) =>
 
-              println("found marked ValDef "+name+" of type " + vd.symbol.tpe)
+              log("found marked ValDef "+name+" of type " + vd.symbol.tpe)
 
       	      val tpe = vd.symbol.tpe
 
-//    	        val rhs1 = transform(rhs)
-    	        val rhs1 = localTyper.typed(resetAttrs(transform(rhs))) // FIXME: can do without resetAttrs?
+//  	        val rhs1 = transform(rhs)
+              val rhs1 = localTyper.typed(transform(rhs))
+//  	        val rhs1 = localTyper.typed(resetAttrs(transform(rhs))) // FIXME: can do without resetAttrs?
 
-      	      println("valdef symbol " + vd.symbol + " has type " + tpe)
-      	      println("right hand side " + rhs1 + " has type " + rhs1.tpe)
+      	      log("valdef symbol " + vd.symbol + " has type " + tpe)
+      	      log("right hand side " + rhs1 + " has type " + rhs1.tpe)
 
       	      log("currentOwner: " + currentOwner)
       	      log("currentMethod: " + currentMethod)
@@ -244,8 +311,8 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 
               val body = {
                 val (a, b) = transBlock(rest, expr)
-                resetAttrs(Block(a, b)) // FIXME: can we do without?
-//                Block(a, b)
+//                resetAttrs(Block(a, b)) // FIXME: can we do without?
+                Block(a, b)
               }
               
               new TreeSymSubstituter(List(vd.symbol), List(arg)).traverse(body)
@@ -275,13 +342,13 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
               new ChangeOwnerTraverser(currentMethod, sym).traverse(body)
 
 
-      	      println("fun.symbol: "+fun.symbol)
-      	      println("fun.symbol.owner: "+fun.symbol.owner)
-      	      println("arg.owner: "+arg.owner)
+      	      log("fun.symbol: "+fun.symbol)
+      	      log("fun.symbol.owner: "+fun.symbol.owner)
+      	      log("arg.owner: "+arg.owner)
 
               
-              println("fun.tpe:"+fun.tpe)
-              println("return type of fun:"+body.tpe)
+              log("fun.tpe:"+fun.tpe)
+              log("return type of fun:"+body.tpe)
               
               var methodName = "map"
               

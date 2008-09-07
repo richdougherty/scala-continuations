@@ -5,13 +5,10 @@ import scala.continuations.CPS._
 
 import scala.collection.mutable._
 
-// FIXME: breaks with current version
-// by-name-parameter problem
-
-
 object Test5 {
 
   @cps def stop() = shift((k:Any=>Any)=>())
+  @cps def continue(x:Any) = shift((k:Any=>Any)=>k(x))
 
 /*  
   implicit def delay[A](a: =>Context[A]) = {
@@ -44,21 +41,17 @@ object Test5 {
 
     println("before parallel")
 
-//    @cps def left() = 
-
-//    @cps def right() = 
-
-
-    val z:(String,Int) = parallel({
+    val z = parallel({
         println("before get")
-        val x:String = ping.get()
+        val x:String = ping.get() // FIXME: need the type here, so implicit gets inserted!!!
         println("after get: " + x)
         x
     },{
         println("before put")
         ping.put("secret")
         println("after put")
-        0
+        continue(0) // FIXME: would rather not have to use 'continue' and just write
+                    // down the return val instead
     })
     
     println("after parallel: " + z)

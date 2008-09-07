@@ -33,11 +33,11 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
   lazy val MarkerCPS = definitions.getClass("scala.continuations.cps")
   lazy val MarkerUnCPS = definitions.getClass("scala.continuations.uncps")
   lazy val Shift = definitions.getClass("scala.continuations.Shift")
-
+/*
   lazy val cpsModule = definitions.getMember(definitions.getModule("scala.continuations"), "CPS")
   lazy val shift2val = definitions.getMember(cpsModule, "shift2val")  
   lazy val val2shift = definitions.getMember(cpsModule, "val2shift")
-
+*/
 
   class ANFTransformer(unit: CompilationUnit) extends TypingTransformer(unit) {
 
@@ -120,7 +120,9 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
           (Nil, copy.Block(tree, a, b))
 
         case ValDef(mods, name, tptTre, rhs) =>
-          val (stms, anfRhs) = transInlineExpr(rhs)
+          val (stms, anfRhs) = atOwner(tree.symbol) { transInlineExpr(rhs) }
+          val tv = new ChangeOwnerTraverser(tree.symbol, currentOwner)
+          stms.foreach(tv.traverse(_))
           (stms, copy.ValDef(tree, mods, name, tptTre, anfRhs))
 
         // FIXME: if valdef is already marked, don't translate it again
