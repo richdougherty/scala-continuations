@@ -22,7 +22,7 @@ class SelectiveCPSTransformPlugin(val global: Global) extends Plugin {
 */
     new SelectiveANFTransform() { 
       val global = SelectiveCPSTransformPlugin.this.global
-      val runsAfter = "typer" 
+      val runsAfter = "pickler" 
     },
     new SelectiveCPSTransform() { 
       val global = SelectiveCPSTransformPlugin.this.global

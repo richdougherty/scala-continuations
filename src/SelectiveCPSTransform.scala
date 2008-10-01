@@ -35,6 +35,14 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
   lazy val MarkerUnCPS = definitions.getClass("scala.continuations.uncps")
   lazy val Context = definitions.getClass("scala.continuations.Shift")
 
+  lazy val ModCPS = definitions.getModule("scala.continuations.CPS")
+  lazy val MethShiftUnit = definitions.getMember(ModCPS, "shiftUnit")
+  lazy val MethShiftUnitR = definitions.getMember(ModCPS, "shiftUnitR")
+  lazy val MethShift = definitions.getMember(ModCPS, "shift")
+  lazy val MethShiftR = definitions.getMember(ModCPS, "shiftR")
+  lazy val MethReify = definitions.getMember(ModCPS, "reify")
+  lazy val MethReifyR = definitions.getMember(ModCPS, "reifyR")
+
 
 
 
@@ -64,7 +72,48 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
       }
     }
   }
+
+private val flattened = new TypeMap {
+  def apply(tp: Type): Type = tp match {
+    case TypeRef(pre, sym, args) if (pre.typeSymbol.isClass && !pre.typeSymbol.isPackageClass) =>
+      assert(args.isEmpty)
+      typeRef(sym.toplevelClass.owner.thisType, sym, args)
+    case ClassInfoType(parents, decls, clazz) =>
+      var parents1 = parents
+      val decls1 = newScope
+      if (clazz.isPackageClass) {
+        atPhase(phase.next)(decls.toList foreach (sym => decls1 enter sym))
+      } else {
+        val oldowner = clazz.owner
+        atPhase(phase.next)(oldowner.info)
+        parents1 = List.mapConserve(parents)(this)
+        for (val sym <- decls.toList) {
+          if (sym.isTerm && !sym.isStaticModule) {
+            decls1 enter sym
+            if (sym.isModule) sym.moduleClass setFlag LIFTED
+          } else if (sym.isClass) {
+            liftClass(sym)
+            if (sym.needsImplClass) liftClass(erasure.implClass(sym))
+          }
+        }
+      }
+      ClassInfoType(parents1, decls1, clazz)
+    case PolyType(tparams, restp) =>
+      val restp1 = apply(restp);
+      if (restp1 eq restp) tp else PolyType(tparams, restp1)
+    case _ =>
+      mapOver(tp)
+  }
+}
 */
+
+
+
+
+
+
+
+
 
 
     def updateReturnType(tpe: Type, rhs: (Type => Type)): Type = tpe match {
@@ -120,15 +169,58 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
       case _ =>
     }
   
-    // TODO: correct to remove attributes?
+    // TODO: ok to remove attribs?
     appliedType(Context.tpe, List(tp.withoutAttributes, res, outer))
   }
 
+
+  def transformCPSType(tp: Type): Type = {  // TODO: use a TypeMap?
+    
+    tp match {
+    case PolyType(params,res) => PolyType(params, transformCPSType(res))
+    case MethodType(params,res) => MethodType(params.map(transformCPSType(_)), transformCPSType(res))
+    case TypeRef(pre, sym, args) => TypeRef(pre, sym, args.map(transformCPSType(_)))
+    case _ =>
+    
+    // TODO: more cases?
+    
+    
+    var res = AnyClass.tpe  // TODO: are these reasonable?
+    var outer = AnyClass.tpe
+    var found = false
+    
+    tp.attributes.foreach {
+      case AnnotationInfo(an, args, param) if an.typeSymbol == MarkerCPSTypes => 
+        res = an.typeArgs(0)
+        outer = an.typeArgs(1)
+        found = true
+      case _ =>
+    }
+    
+    if (found)
+      appliedType(Context.tpe, List(tp.withoutAttributes, res, outer))
+    else
+      tp
+    
+    }
+  }
 
 
   /** - return symbol's transformed type, 
    */
   def transformInfo(sym: Symbol, tp: Type): Type = {
+
+    val newtp = transformCPSType(tp)
+
+    if (newtp != tp)
+      log("transformInfo changed type for " + sym + " to " + newtp);
+
+    if (sym == MethReifyR)
+      log("transformInfo (not)changed type for " + sym + " to " + newtp);
+
+    newtp
+    
+/*
     
     if (sym.isMethod && sym.hasAttribute(MarkerCPS)) {
       
@@ -139,6 +231,7 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
     } else {
      tp
     }
+*/    
   }
 
 
@@ -148,11 +241,16 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 
   class CPSTransformer(unit: CompilationUnit) extends TypingTransformer(unit) {
 
-    override def transform(tree: Tree): Tree = atPhase(phase.next) { 
+    override def transform(tree: Tree): Tree = {
       postTransform(mainTransform(tree))
     }
 
+    def postTransform(tree: Tree): Tree = {
+        tree.setType(transformCPSType(tree.tpe))
+    }
 
+
+/*
     class ShallowTraverser(maxDepth:Int) extends Traverser {
       var curDepth = 0
       override def traverse(t: Tree) {
@@ -218,7 +316,7 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
         }
         
     }
-    
+*/    
 
 
 
@@ -227,16 +325,60 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
     def mainTransform(tree: Tree): Tree = {
       tree match {
 
+        case Apply(TypeApply(fun, targs), args)
+        if (fun.symbol == MethShift) =>
+          log("found shift: " + tree)
+          atPos(tree.pos) {
+            val funR = gen.mkAttributedRef(MethShiftR) // TODO: correct?
+            log(funR.tpe)
+            Apply(
+                TypeApply(funR, targs).setType(appliedType(funR.tpe, targs.map((t:Tree) => t.tpe))),
+                args.map(transform(_))
+            ).setType(transformCPSType(tree.tpe))
+          }
+        
+        case Apply(TypeApply(fun, targs), args)
+        if (fun.symbol == MethShiftUnit) =>
+          log("found shiftUnit: " + tree)
+          atPos(tree.pos) {
+            val funR = gen.mkAttributedRef(MethShiftUnitR) // TODO: correct?
+            log(funR.tpe)
+            Apply(
+                TypeApply(funR, List(targs(0), targs(1))).setType(appliedType(funR.tpe, 
+                    List(targs(0).tpe, targs(1).tpe))),
+                args.map(transform(_))
+            ).setType(appliedType(Context.tpe, List(targs(0).tpe,targs(1).tpe,targs(1).tpe)))
+          }
+
+        case Apply(TypeApply(fun, targs), args)
+        if (fun.symbol == MethReify) =>
+          log("found reify: " + tree)
+          atPos(tree.pos) {
+            val funR = gen.mkAttributedRef(MethReifyR) // TODO: correct?
+            log(funR.tpe)
+            Apply(
+                TypeApply(funR, targs).setType(appliedType(funR.tpe, targs.map((t:Tree) => t.tpe))),
+                args.map(transform(_))
+            ).setType(transformCPSType(tree.tpe))
+          }
+/*          
+        case TypeTree() =>
+          log(" ---> " + tree + "/" + currentMethod)
+          tree
+*/
+
+        // TODO: forbid referencing shift/reset in non-apply positions
+
+/*
         case Apply(fun, expr)
         if (tree.symbol.hasAttribute(MarkerUnCPS)) =>  //just remove them!
           // TODO: assert expr.length == 1
           transform(expr(0))
 
         case Ident(_) | Select(_, _)
-        if (tree.symbol.hasAttribute(MarkerCPS)) =>
+        if (tree.symbol.hasAttribute(MarkerCPS)) => // FIXME!!!
           log("translating ref to method: " + tree)
           super.transform(tree).setType(null) // mark term for re-typing
-
 
         case dd @ DefDef(mods, name, tparams, vparams, tpt, rhs)
         if (tree.symbol.hasAttribute(MarkerCPS)) =>
@@ -263,15 +405,15 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
           }
 
 	        copy.DefDef(dd, mods, name, tparams, vparams, TypeTree(methTpe).setPos(tpt.pos), rhs1) 
+*/
 
         case Block(stms, expr) => 
         
-          // TODO: should we require to be in a @cps annotated method?
 	        val (stms1, expr1) = transBlock(stms, expr)
-          copy.Block(tree, stms1, expr1).setType(expr1.tpe)
+          copy.Block(tree, stms1, expr1)
 
         case _ => 
-          super.transform(tree)//.setType(null)
+          super.transform(tree)
       }
     }
 
@@ -293,9 +435,7 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 
       	      val tpe = vd.symbol.tpe
 
-//  	        val rhs1 = transform(rhs)
-              val rhs1 = localTyper.typed(transform(rhs))
-//  	        val rhs1 = localTyper.typed(resetAttrs(transform(rhs))) // FIXME: can do without resetAttrs?
+  	          val rhs1 = transform(rhs)
 
       	      log("valdef symbol " + vd.symbol + " has type " + tpe)
       	      log("right hand side " + rhs1 + " has type " + rhs1.tpe)
@@ -311,21 +451,11 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 
               val body = {
                 val (a, b) = transBlock(rest, expr)
-//                resetAttrs(Block(a, b)) // FIXME: can we do without?
                 Block(a, b)
               }
               
               new TreeSymSubstituter(List(vd.symbol), List(arg)).traverse(body)
 
-
-//              // FIXME: don't know last parameter (result type of shift's body)
-//              val stpe = appliedType(Context.tpe, List(tpe))
-
-//              log("computed shift will have type " + stpe)
-
-//              new ChangeOwnerTraverser(currentMethod, sym).traverse(body)
-//              new TreeSymSubstituter(List(vd.symbol), List(arg)).traverse(body)
-              
               val fun = localTyper.typed(Function(
                 List(
                   ValDef(arg)

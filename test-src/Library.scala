@@ -30,35 +30,35 @@ final class Shift[+A,-B,+C](val fun: (A => B) => C) {
 
 object CPS {
 
-  type Context[A] = Shift[A,Any,Any]
+  def shiftUnit[A,B,C](x: A): A @cpstypes[B,C] = {
+    throw new Exception("cps!")
+  }
+
+  def shift[A,B,C](fun: (A => B) => C): A @cpstypes[B,C] = {
+    throw new Exception("cps!")
+  }
+
+  def reify[A,B,C](ctx: =>(A @cpstypes[B,C])): Shift[A,B,C] = {
+    throw new Exception("cps!")
+  }
   
-  // at compile-time, these are removed
 
-  @uncps implicit def shift2val[A,B,C](x: =>Shift[A,B,C]): A @cpstypes[B,C] = {
-    x.asInstanceOf[A @cpstypes[B,C]]
+  def shiftUnitR[A,B](x: A): Shift[A,B,B] = {
+    shiftR((k:A=>B) => k(x))
   }
 
-  @uncps implicit def val2shift[A](x: =>A): Shift[A,A,Any] = {
-    x.asInstanceOf[Shift[A,A,Any]]
+  def shiftR[A,B,C](fun: (A => B) => C): Shift[A,B,C] = {
+    new Shift(fun)
+  }
+
+  def reifyR[A,B,C](ctx: => Shift[A,B,C]): Shift[A,B,C] = {
+    ctx
   }
 
 
-  @uncps def stronglyTyped[A,B,C](x: =>A @cpstypes[B,C]): Shift[A,B,C] = {
-    x.asInstanceOf[Shift[A,B,C]]
+  def reset[A,C](ctx: =>(A @cpstypes[A,C])):C = {
+    reify[A,A,C](ctx).fun((x:A) => x)
   }
 
-  // methods marked @cps will return Context[A] instead of A
-
-  @cps def shift[A,B,C](fun: (A => B) => C): Shift[A,B,C] = {
-    new Shift[A,B,C](fun)
-  }
-
-  def reset[A,C](ctx: =>Shift[A,A,C]):C = {
-    ctx.fun((x:A) => x)
-  }
-
-  def spawn[A,C](ctx: =>Shift[A,Unit,C]):C = {
-    ctx.fun((x:A) => ())
-  }
   
 }

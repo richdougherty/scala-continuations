@@ -8,14 +8,13 @@ import scala.continuations.CPS._
 
 object Test1 {
 
-  @cps[Int] def testThisMethod() = {
+  def testThisMethod(): Int @cpstypes[Int,Int] = {
 
     1 + shift((k:Int=>Int) => k(k(k(17))))
 
   }
 
-
-  @cps[Int] def testThisCallingMethod() = {
+  def testThisCallingMethod(): Int @cpstypes[Int,Int] = {
     
     testThisMethod() * 2
     
@@ -23,7 +22,7 @@ object Test1 {
 
   def main(args: Array[String]) {
 
-    val result = reset(testThisCallingMethod())
+    val result = reset[Int,Int](testThisCallingMethod())
     
     // ((((((17 + 1) * 2) + 1) * 2) + 1) * 2) = 150
     

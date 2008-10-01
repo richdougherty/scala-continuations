@@ -18,7 +18,7 @@ object Test2 {
   // can only find out params 2 and 3 by
   // looking at method body
 
-  @cps def methA(): Int @cpstypes[String, Some[String]] = {
+  def methA(): Int @cpstypes[String, Some[String]] = {
 
     def fun(k:Int=>String) = {
       for (i<-List(1,2,3,4)) 
@@ -41,14 +41,14 @@ object Test2 {
   // after translation, which depends on methA's
   // body, not just the signature.
 
-  @cps def methB(): String @cpstypes[String, Some[String]] = {
+  def methB(): String @cpstypes[String, Some[String]] = {
 
     "   +++ " + methA().toString()
   }
 
   def main(args: Array[String]) {
 
-    val result = reset(stronglyTyped[String,String,Any](methB()))
+    val result = reset[String,Any](methB())
 
     println(result)
 

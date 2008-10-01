@@ -121,23 +121,25 @@ object Test3 {
     val put = new Channel("put")
     val get = new Channel("get")
 
-    Join.rule { case put(x !? return_put) & get(y !? return_get)=> 
-      println("inside rule body..."); (return_put & return_get)!((),x) }
+//    Join.rule { case put(x !? return_put) & get(y !? return_get)=> 
+//      println("inside rule body..."); (return_put & return_get)!((),x) }
 
 
     println("parallel: put(Blabla) & get()")
 
     val combined = (put & get)
 
-    val res = combined!?("Blabla", ())
+    val res:String = get!?(())
 
-  	println("=> result: " + res)
+    println("=> result: " + res)
   }
 
   def main(args: Array[String]) {
 
-    reset(testCode())
+    val x = reset(testCode())
     
+    ()
+
     /*
       expect output:
       """
