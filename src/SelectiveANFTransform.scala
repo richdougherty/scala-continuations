@@ -44,20 +44,21 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
     override def transform(tree: Tree): Tree = {
       tree match {
         
-        case dd @ DefDef(mods, name, tparams, vparams, tpt, rhs) =>
+        case dd @ DefDef(mods, name, tparams, vparamss, tpt, rhs)
+	  if ((mods.flags != 1073742368)) => // HACK!!!! (case classes problem, see Test3)
 //        if (dd.symbol.hasAttribute(MarkerCPS)) =>
 
-          log("transforming " + tree.symbol)
+          log("transforming " + dd.symbol)
 
-          val rhs1 = atOwner(dd.symbol) {
-              transExpr(rhs, hasAnn(tpt.tpe))
-          }
+          atOwner(dd.symbol) {
+            val rhs1 = transExpr(rhs, hasAnn(tpt.tpe))
+      
+            log("result "+rhs1)
+            log("result is of type "+rhs1.tpe)
 
-          log("result "+rhs1)
-          log("result is of type "+rhs1.tpe)
-
-          copy.DefDef(dd, mods, name, tparams, vparams,
-            tpt, rhs1)
+            copy.DefDef(dd, mods, name, transformTypeDefs(tparams), transformValDefss(vparamss),
+			transform(tpt), rhs1)
+	  }
 
         case _ => 
         
@@ -128,36 +129,59 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
           val (a, b) = transBlock(stms, expr, cps)
           (Nil, copy.Block(tree, a, b).setType(b.tpe), None)
 
-        case ValDef(mods, name, tptTre, rhs) =>
-          val (stms, anfRhs, spc) = atOwner(tree.symbol) { transInlineValue(rhs) }
-          val tv = new ChangeOwnerTraverser(tree.symbol, currentOwner)
-          stms.foreach(tv.traverse(_))
-          (stms, copy.ValDef(tree, mods, name, tptTre, anfRhs), spc)
-
-        // FIXME: if valdef is already marked, don't translate it again
-        
-        // valdef is not an expression (can't trans to a value), but a statement
-          
         case Select(qual, name) =>
           val (stms, expr, spc) = transInlineValue(qual)
           (stms, copy.Select(tree, expr, name), spc)
-
-        case If(cond, thenp, elsep) =>
+/*	
+	case EmptyTree =>
+	  if (cps.isDefined)
+	    (Nil, atPos(tree.pos) { Literal(()).setType(UnitClass.tpe) }, None)
+	  else
+	    (Nil, tree, None)
+ */
+	case If(cond, thenp, elsep) =>
           val (condStats, condVal, spc) = transInlineValue(cond)
           val thenVal = transExpr(thenp, cps)
-          val elseVal = transExpr(elsep, cps)
+	  val elseVal = transExpr(elsep, cps)
+//          val elseVal = transExpr(if (cps.isDefined && elsep == EmptyTree)
+//	    Literal(()).setType(UnitClass.tpe).setPos(tree.pos) else elsep, cps)
+	
+          // TODO: check that then and else parts agree
+	  
+	  if (cps.isDefined) {
+	    if (elsep == EmptyTree)
+	      unit.error(tree.pos, "always need else part in cps code")
+	  }
+	  
+	  if (!(hasAnn(thenVal.tpe).isDefined == hasAnn(elseVal.tpe).isDefined)) {
+	      unit.error(tree.pos, "then and else part must both be cps code or neither of them")
+	  }
 
-          (condStats, copy.If(tree, condVal, thenVal, elseVal), spc)
+          (condStats, copy.If(tree, condVal, thenVal, elseVal).setType(thenVal.tpe), cps)
 
+	  // FIXME: type of else part not reflected
+
+	case LabelDef(name, params, rhs) =>
+          val rhsVal = transExpr(rhs, cps)
+
+	  // FIXME: ref to declared label still carries old type
+	
+	  if (hasAnn(rhsVal.tpe).isDefined) {
+	    unit.error(tree.pos, "cps code not (yet) allowed in while loops")
+	  }
+	  
+	  (Nil, copy.LabelDef(tree, name, params, rhsVal).setType(rhsVal.tpe), cps)
+	  
+	
         case TypeApply(fun, args) =>
           val (stms, expr, spc) = transInlineValue(fun)
           (stms, copy.TypeApply(tree, expr, args), spc)
 
         case Apply(fun, args) =>
-            val (funStm, funExpr, funSpc) = transInlineValue(fun)
-            val (argStm, argExpr, argSpc) = transParamList(fun, args)
+          val (funStm, funExpr, funSpc) = transInlineValue(fun)
+          val (argStm, argExpr, argSpc) = transParamList(fun, args)
 
-            (funStm ::: List.flatten(argStm), copy.Apply(tree, funExpr, argExpr), argSpc orElse funSpc)
+          (funStm ::: List.flatten(argStm), copy.Apply(tree, funExpr, argExpr), argSpc orElse funSpc)
 
         case _ =>
           (Nil, transform(tree), None)
@@ -172,17 +196,26 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
       // FIXME: make sure everything matches!
 
-      if ((cps.isDefined || spc.isDefined) && !(hasAnn(expr.tpe).isDefined || expr.isInstanceOf[Throw])) {
-          log("cps type error (expected: " + cps + "/"+ spc + ") in: " + expr)
+      if ((cps.isDefined || spc.isDefined) && !(hasAnn(expr.tpe).isDefined || expr.isInstanceOf[Throw] || expr == EmptyTree)) {
+        log("cps type error (expected: " + cps + "/"+ spc + ") in: " + expr)
+	  
+        try {
 
-          val Some((a, b)) = cps orElse spc
-
-          val res = atPos(expr.pos) {
-	          localTyper.typed(Apply(TypeApply(gen.mkAttributedRef(MethShiftUnit), 
-                    List(TypeTree(expr.tpe), TypeTree(a), TypeTree(b))), List(expr)))
-          }
+	  val Some((a, b)) = cps orElse spc
+	  
+          val res = localTyper.typed(atPos(tree.pos) {
+	          Apply(TypeApply(gen.mkAttributedRef(MethShiftUnit), 
+                    List(TypeTree(expr.tpe), TypeTree(a), TypeTree(b))), List(expr))
+          })
 
           (stms, res) // TODO: apply conversion
+	
+	} catch {
+	  case ex:TypeError =>
+	    unit.error(ex.pos, "cannot cps-transform expression " + tree + ": " + ex.msg)
+	    (stms, expr)
+	}
+
       } else {
         (stms, expr)
       }
@@ -190,7 +223,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
     }
     
     def transInlineValue(tree: Tree): (List[Tree], Tree, Option[(Type,Type)]) = {
-      
+
       val (stms, expr, spc) = transValue(tree, None) // never required to be cps
 
       hasAnn(expr.tpe) match {
@@ -209,73 +242,50 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
         case _ =>
           (stms, expr, spc)
       }
-/*      
-      tree match {
 
-        case Apply(fun, args)
-        if (getQualifiedSymbol(fun).hasAttribute(MarkerUnCPS)) =>
-
-          val (funStm, funExpr) = transInlineValue(fun)
-          val (argStm, argExpr) = transParamList(fun, args)
-
-          val valueTpe = tree.tpe
-
-          val sym = currentOwner.newValue(tree.pos, unit.fresh.newName(tree.pos, "tmp"))
-                      .setInfo(valueTpe)
-                      .setFlag(Flags.SYNTHETIC)
-                      .setAttributes(List(AnnotationInfo(MarkerCPS.tpe, Nil, Nil)))        
-
-          (funStm ::: List.flatten(argStm) ::: 
-             List(ValDef(sym, copy.Apply(tree, funExpr, argExpr)) setType(NoType)),
-             Ident(sym) setType(valueTpe) setPos(tree.pos))          
-
-
-        case Apply(fun, args)
-        if (getQualifiedSymbol(fun).hasAttribute(MarkerCPS)) =>
-        
-          val (funStm, funExpr) = transInlineValue(fun)
-          val (argStm, argExpr) = transParamList(fun, args)
-          
-          log("found apply of "+fun+", which is marked")
-          log("result of application has type " + tree.tpe)
-          
-          val valueTpe = tree.tpe
-
-          val sym = currentOwner.newValue(tree.pos, unit.fresh.newName(tree.pos, "tmp"))
-                      .setInfo(valueTpe)
-                      .setFlag(Flags.SYNTHETIC)
-                      .setAttributes(List(AnnotationInfo(MarkerCPS.tpe, Nil, Nil)))        
-
-          (funStm ::: List.flatten(argStm) ::: 
-             List(ValDef(sym, copy.Apply(tree, funExpr, argExpr)) setType(NoType)),
-             Ident(sym) setType(valueTpe) setPos(tree.pos))
-
-        case _ =>
-          transTailValue(tree)
-      }
-*/      
     }
 
 
     def transBlock(stms: List[Tree], expr: Tree, cps: Option[(Type,Type)]): (List[Tree], Tree) = {
-
       stms match {
         case Nil =>
           transTailValue(expr, cps)
 
         case stm::rest =>
-          val (headStm, headExpr, headSpc) = transInlineValue(stm)
-/*          
-          val xx = for (val tree@ValDef(_, _, _, _) <- headStm:::List(headExpr) if (tree.symbol.hasAttribute(MarkerCPS))) yield(0)
-          
-          log("block prefix: " + (headStm:::List(headExpr)))
-          if (!xx.isEmpty)
-            log("will translate block rest: " + rest)
-          
-          val cpsrest = cps || !xx.isEmpty
-*/          
-          val (restStm, restExpr) = transBlock(rest, expr, cps orElse headSpc)
-          (headStm:::List(headExpr):::restStm, restExpr)
+	  var (rest2, expr2) = (rest, expr)
+          val (headStms, headSpc) = stm match {
+
+	    // TODO: what about DefDefs?
+
+            case tree@ValDef(mods, name, tptTre, rhs) =>
+              val (stms, anfRhs, spc) = atOwner(tree.symbol) { transInlineValue(rhs) }
+	    
+              val tv = new ChangeOwnerTraverser(tree.symbol, currentOwner)
+              stms.foreach(tv.traverse(_))
+
+	      if (spc.isDefined && anfRhs.isInstanceOf[Ident]) { // FIXME: right condition?
+
+		// TODO: exponential. not sooo good.
+
+		val tv2 = new TreeSubstituter(List(tree.symbol), List(anfRhs))
+		rest2 = rest.map(tv2.transform(_))
+		expr2 = tv2.transform(expr)
+		
+		// TODO: in fact, wer're removing any user-given type in the
+		// valdef. problem?
+
+		(stms, spc)
+	      } else {
+		(stms:::List(copy.ValDef(tree, mods, name, tptTre, anfRhs)), spc)
+	      }
+
+
+	    case _ =>
+	      val (headStms, headExpr, headSpc) = transInlineValue(stm)
+	      (headStms:::List(headExpr), headSpc)
+	  }
+          val (restStms, restExpr) = transBlock(rest2, expr2, cps orElse headSpc)
+          (headStms:::restStms, restExpr)
        }
     }
 

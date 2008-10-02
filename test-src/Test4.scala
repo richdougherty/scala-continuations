@@ -36,7 +36,7 @@ final class Mailbox[A](val name: String) {
   val values = new Queue[A]()
   val rules = new Queue[A=>Any]()
   
-  @cps def get(): A = {
+  def get(): A @cpstypes[Any,Any]= {
     shift((k:(A => Any)) =>
       if (!values.isEmpty) {
         val v = values.dequeue()
@@ -62,16 +62,16 @@ final class Mailbox[A](val name: String) {
 
 object Test4 {
 
-  @cps def stop() = shift((k:Any=>Any)=>())
+  def stop(): Any @cpstypes[Any,Any] = shift((k:Any=>Any)=>())
 
-  def testCode() = {
+  def testCode():Unit = {
     val ping = new Mailbox[String]("ping")
     val pong = new Mailbox[String]("pong")
 
     val max = 1*1000*1000
     val step = max/10
     
-    @cps def pingActor(i: Int):Any = {
+    def pingActor(i: Int):Any @cpstypes[Any,Any] = {
       pong.put("ping")
       ping.get()
 
@@ -81,10 +81,10 @@ object Test4 {
       if (i < max)
         pingActor(i+1)
       else
-        stop()
+	()
     }
     
-    @cps def pongActor():Any = {
+    def pongActor():Any @cpstypes[Any,Any] = {
       val x = pong.get()
 
 //    println("Pong: " + x)
@@ -93,8 +93,8 @@ object Test4 {
       pongActor()
     }
     
-    reset(pingActor(1))
-    reset(pongActor())
+    reset[Any,Any](pingActor(1))
+    reset[Any,Any](pongActor())
   }
 
   def main(args: Array[String]) {

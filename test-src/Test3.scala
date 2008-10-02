@@ -29,7 +29,7 @@ case class WithCont(v: Any, c: Channel);
 
 class Parallel(left: Channel, right: Channel) {
 
-	@cps def !?(v: Any, w: Any) = {
+	def !?(v: Any, w: Any):Any @cpstypes[Any,Any] = {
 		shift((k:Any => Any) => {
   		val c = new Channel("c");
   		val d = new Channel("d");
@@ -59,7 +59,7 @@ class Channel(val name: String) {
 	val values = new ArrayBuffer[Any]()
 	val rules = new ArrayBuffer[Rule]()
 	
-	@cps def !?(v: Any) = {
+	def !?(v: Any):Any @cpstypes[Any,Any] = {
 		shift((k:Any => Any) => {
   		val c = new Channel("c");
   		Join.rule { case c(x) => k(x) }
@@ -117,26 +117,26 @@ object Join {
 
 object Test3 {
 
-  @cps def testCode() = {
+  def testCode(): Any @cpstypes[Any,Any] = {
     val put = new Channel("put")
     val get = new Channel("get")
 
-//    Join.rule { case put(x !? return_put) & get(y !? return_get)=> 
-//      println("inside rule body..."); (return_put & return_get)!((),x) }
+    Join.rule { case put(x !? return_put) & get(y !? return_get)=> 
+      println("inside rule body..."); (return_put & return_get)!((),x) }
 
 
     println("parallel: put(Blabla) & get()")
 
     val combined = (put & get)
 
-    val res:String = get!?(())
+    val res = combined!?(("data"),())
 
     println("=> result: " + res)
   }
 
   def main(args: Array[String]) {
 
-    val x = reset(testCode())
+    val x = reset[Any,Any](testCode())
     
     ()
 

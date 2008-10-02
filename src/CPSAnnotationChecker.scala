@@ -34,12 +34,15 @@ abstract class CPSAnnotationChecker {
     /** Check annotations to decide whether tpe1 <:< tpe2 */
     def annotationsConform(tpe1: Type, tpe2: Type): Boolean = {
 
+      return true // FIXME: check what's the right thing to do
+
+
       val m1 = filterAttribs(tpe1,MarkerCPSTypes)
       val m2 = filterAttribs(tpe2,MarkerCPSTypes)
       
-      (m1 ++ m2) match {
+      (m1::: m2) match {
         case List(AnnotationInfo(t1,_,_), AnnotationInfo(t2,_,_)) =>
-//          println("checking two annotated types: "+t1+" <:< "+t2)
+          println("checking two annotated types: "+t1+" <:< "+t2)
           t1 <:< t2
         case List(AnnotationInfo(_,_,_)) => 
           true

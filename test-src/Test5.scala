@@ -7,9 +7,6 @@ import scala.collection.mutable._
 
 object Test5 {
 
-  @cps def stop() = shift((k:Any=>Any)=>())
-  @cps def continue(x:Any) = shift((k:Any=>Any)=>k(x))
-
 /*  
   implicit def delay[A](a: =>Context[A]) = {
     object Delayed {
@@ -19,23 +16,25 @@ object Test5 {
   }
 */
   
-  @cps def parallel[A,B](a: =>Shift[A,Any,Any], b: =>Shift[B,Any,Any]) = {
+  def parallel[A,B](a: =>(A @cpstypes[Any,Any]), 
+		    b: =>(B @cpstypes[Any,Any])): Pair[A,B] @cpstypes[Any,Any] = {
+
       println("BEGIN")
 
       val u = new Mailbox[A]("u")
       val v = new Mailbox[B]("v")
 
-      reset(a.map((x:A) => u.put(x)))
-      reset(b.map((y:B) => v.put(y)))
+      reset[Any,Any](u.put(a))
+      reset[Any,Any](v.put(b))
 
-      val x:A = u.get()
-      val y:B = v.get()
+      val x = u.get()
+      val y = v.get()
 
       println("END")
       (x,y)
   }
 
-  @cps def testCode(): Any = {
+  def testCode(): Any @cpstypes[Any,Any] = {
     val ping = new Mailbox[String]("ping")
     val pong = new Mailbox[String]("pong")
 
@@ -43,26 +42,23 @@ object Test5 {
 
     val z = parallel({
         println("before get")
-        val x:String = ping.get() // FIXME: need the type here, so implicit gets inserted!!!
+        val x = ping.get()
         println("after get: " + x)
         x
     },{
         println("before put")
         ping.put("secret")
         println("after put")
-        continue(0) // FIXME: would rather not have to use 'continue' and just write
-                    // down the return val instead
     })
     
     println("after parallel: " + z)
-    stop()
   }
 
   def main(args: Array[String]) {
 
     val t0 = java.lang.System.currentTimeMillis();
 
-    reset(testCode())
+    reset[Any,Any](testCode())
 
     TaskScheduler.execAll()
     
