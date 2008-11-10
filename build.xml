@@ -305,6 +305,8 @@
   <target name="clean.build">
     <delete dir="build/build.main" includeemptydirs="yes"
             quiet="yes" failonerror="no"/>
+    <delete dir="build/build.library" includeemptydirs="yes"
+            quiet="yes" failonerror="no"/>
     <delete dir="build/build.test" includeemptydirs="yes"
             quiet="yes" failonerror="no"/>
     <delete dir="build/build.examples" includeemptydirs="yes"
