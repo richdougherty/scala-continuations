@@ -30,7 +30,7 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 
 
 
-  lazy val MarkerCPS = definitions.getClass("scala.continuations.cps")
+  lazy val MarkerCPS = definitions.getClass("scala.continuations.cpsv")
   lazy val MarkerCPSTypes = definitions.getClass("scala.continuations.cpstypes")
   lazy val MarkerUnCPS = definitions.getClass("scala.continuations.uncps")
   lazy val Context = definitions.getClass("scala.continuations.Shift")
@@ -176,6 +176,8 @@ private val flattened = new TypeMap {
 
   def transformCPSType(tp: Type): Type = {  // TODO: use a TypeMap?
     
+//    return tp.withoutAttributes // REMOVE
+
     tp match {
     case PolyType(params,res) => PolyType(params, transformCPSType(res))
     case MethodType(params,res) => MethodType(params.map(transformCPSType(_)), transformCPSType(res))
@@ -242,6 +244,9 @@ private val flattened = new TypeMap {
   class CPSTransformer(unit: CompilationUnit) extends TypingTransformer(unit) {
 
     override def transform(tree: Tree): Tree = {
+
+//      return postTransform(tree)  // TODO: REMOVE
+
       postTransform(mainTransform(tree))
     }
 
@@ -404,12 +409,12 @@ private val flattened = new TypeMap {
                 " does not conform to declared return type "+expect)
           }
 
-	        copy.DefDef(dd, mods, name, tparams, vparams, TypeTree(methTpe).setPos(tpt.pos), rhs1) 
+                copy.DefDef(dd, mods, name, tparams, vparams, TypeTree(methTpe).setPos(tpt.pos), rhs1) 
 */
 
         case Block(stms, expr) => 
         
-	  val (stms1, expr1) = transBlock(stms, expr)
+          val (stms1, expr1) = transBlock(stms, expr)
           copy.Block(tree, stms1, expr1)
 
         case _ => 
@@ -431,23 +436,23 @@ private val flattened = new TypeMap {
             case vd @ ValDef(mods, name, tpt, rhs)
             if (vd.symbol.hasAttribute(MarkerCPS)) =>
 
-	      log("found marked ValDef "+name+" of type " + vd.symbol.tpe)
+              log("found marked ValDef "+name+" of type " + vd.symbol.tpe)
 
-      	      val tpe = vd.symbol.tpe
+              val tpe = vd.symbol.tpe
 
-  	      val rhs1 = transform(rhs)
+              val rhs1 = transform(rhs)
 
-      	      log("valdef symbol " + vd.symbol + " has type " + tpe)
-      	      log("right hand side " + rhs1 + " has type " + rhs1.tpe)
+              log("valdef symbol " + vd.symbol + " has type " + tpe)
+              log("right hand side " + rhs1 + " has type " + rhs1.tpe)
 
-      	      log("currentOwner: " + currentOwner)
-      	      log("currentMethod: " + currentMethod)
+              log("currentOwner: " + currentOwner)
+              log("currentMethod: " + currentMethod)
 
 
-//	      val cls = currentMethod.newAnonymousFunctionClass(rhs.pos)
+//            val cls = currentMethod.newAnonymousFunctionClass(rhs.pos)
 //            val sym = currentMethod.newValue(rhs.pos)
 //            val arg = sym.newValueParameter(rhs.pos, name).setInfo(tpe)
-              val arg = currentMethod.newValueParameter(rhs.pos, name).setInfo(tpe)
+              val arg = currentOwner.newValueParameter(rhs.pos, name).setInfo(tpe)
 
               val body = {
                 val (a, b) = transBlock(rest, expr)
@@ -466,15 +471,15 @@ private val flattened = new TypeMap {
 //            sym.setInfo(fun.tpe) // TODO: not needed?
               
 
-	      val sym = fun.symbol
-	      arg.owner = sym
+              val sym = fun.symbol
+              arg.owner = sym
 
-              new ChangeOwnerTraverser(currentMethod, sym).traverse(body)
+              new ChangeOwnerTraverser(currentOwner, sym).traverse(body)
 
 
-      	      log("fun.symbol: "+fun.symbol)
-      	      log("fun.symbol.owner: "+fun.symbol.owner)
-      	      log("arg.owner: "+arg.owner)
+              log("fun.symbol: "+fun.symbol)
+              log("fun.symbol.owner: "+fun.symbol.owner)
+              log("arg.owner: "+arg.owner)
 
               
               log("fun.tpe:"+fun.tpe)
@@ -493,27 +498,27 @@ private val flattened = new TypeMap {
               
               log("will use method:"+methodName)
               
-	      try {
-		
-		val applied = localTyper.typed(atPos(vd.symbol.pos) {
-		  Apply(
+              try {
+                
+                val applied = localTyper.typed(atPos(vd.symbol.pos) {
+                  Apply(
                     Select(
-		      rhs1,
+                      rhs1,
                       rhs1.tpe.member(methodName)
                     ),
                     List(
                       fun
                     )
-		  )
-		})
+                  )
+                })
               
-		(Nil, applied)
+                (Nil, applied)
 
-	      } catch {
-		case ex:TypeError =>
-		  unit.error(ex.pos, ex.msg)
-		  Block.unapply(body).get
-	      }
+              } catch {
+                case ex:TypeError =>
+                  unit.error(ex.pos, ex.msg)
+                  Block.unapply(body).get
+              }
 
             case _ => 
                 val (a, b) = transBlock(rest, expr)

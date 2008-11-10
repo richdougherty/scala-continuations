@@ -7,35 +7,43 @@ import scala.continuations.CPS._
 
 object Test6 {
 
-
   def loopWhile[T](cond: =>Boolean)(body: =>(Unit @cpstypes[T,T])): Unit @cpstypes[T,T] = {
     if (cond) {
       body
       loopWhile[T](cond)(body)
-    } else ()
+    } else
+      ()
   }
 
+/*
+def loopWhile[T](cond: =>Boolean)(body: =>(Unit @cpstypes[T,T])): Unit  = {
+  if (cond) {
+    body
+    loopWhile[T](cond)(body)
+  }
+  ()
+}
+*/
 
 
   def main(args: Array[String]) {
 
-    val result = reset[Any,Any]{
+    val result = reset {
 
       var x = 7
       
-      loopWhile[Any](x > 0) {
+      loopWhile(x > 0) {
 	
-	x = x - 1
+        x = x - 1
 
-	shift((continue:Unit=>Any)=> {
-	  if (x != 2)
-	    continue()
-	  else
-	    "aborted"
-	})
+        shift((continue:Unit=>Any)=> {
+          if (x != 2)
+            continue()
+          else
+            "aborted"
+        })
 
-	println(x)
-	
+        println(x)
       }
 
       "run to completion"

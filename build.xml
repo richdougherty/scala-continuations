@@ -1,0 +1,332 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- $Id -->
+
+<project name="continuations" default="pack">
+  <!-- Edit the file plugin.properties to set
+   - scala.home
+   - plugin.name
+   - plugin.commandname
+   - plugin.description
+   - plugin.mainclass
+   - version numbers
+  -->
+
+  <property environment="env"/>
+
+  <property file="${basedir}/plugin.properties"/>
+
+  <property name="version" value="${version.major}.${version.minor}"/>
+
+
+  <path id="scala.classpath">
+    <pathelement location="${scala.home}/lib/scala-compiler.jar"/>
+    <pathelement location="${scala.home}/lib/scala-library.jar"/>
+  </path>
+
+
+  <taskdef resource="scala/tools/ant/antlib.xml" classpathref="scala.classpath"/>
+
+  <taskdef resource="scala/tools/partest/antlib.xml">
+    <classpath>
+      <path refid="scala.classpath"/>
+      <pathelement location="${scala.home}/lib/scala-partest.jar"/>
+    </classpath>
+  </taskdef>
+
+  <!-- =================================================================
+  End-user targets
+  ================================================================== -->
+
+  <target name="build" depends="build.done"/>
+  <target name="test" depends="test.done"/>
+  <target name="doc" depends="doc.done"/>
+  <target name="pack" depends="pack.done"/>
+  <target name="dist" depends="dist.done"/>
+  <target name="clean" depends="clean.all"/>
+
+  <!-- =================================================================
+  Build targets
+  ================================================================== -->
+
+  <target name="build.plugin">
+    <mkdir dir="build/build.plugin"/>
+    <fsc srcdir="src/plugin"
+        destdir="build/build.plugin"
+        includes="**/*.scala"
+	addparams=""
+        classpathref="scala.classpath">
+    </fsc>
+  </target>
+
+<!--
+
+  home="${scala.home}"
+
+
+  <target name="build.test" depends="pack.plugin">
+    <mkdir dir="build/build.test"/>
+    <scalac srcdir="test"
+            destdir="build/build.test"
+            includes="**/*.scala"
+            addparams="-Xplugin:build/pack/${plugin.name}-plugin.jar">
+        <classpath>
+          <pathelement location="${scala.home}/lib/scala-library.jar"/>
+          <pathelement location="${scala.home}/lib/scala-compiler.jar"/>
+          <pathelement location="lib/scalatest.jar"/>
+          <pathelement location="build/build.plugin"/>
+        </classpath>
+    </scalac>
+  </target>
+-->
+
+  <target name="build.library" depends="pack.plugin">
+    <mkdir dir="build/build.library"/>
+    <scalac srcdir="src/library"
+            destdir="build/build.library"
+            includes="**/*.scala"
+            addparams="-Xplugin:build/pack/${plugin.name}-plugin.jar">
+      <classpath>
+        <pathelement location="${scala.home}/lib/scala-library.jar"/>
+        <pathelement location="${scala.home}/lib/scala-compiler.jar"/>
+        <pathelement location="build/build.plugin"/>
+      </classpath>
+    </scalac>
+  </target>
+
+  <target name="build.examples" depends="pack.plugin,build.library">
+    <mkdir dir="build/build.examples"/>
+    <scalac srcdir="doc/examples"
+            destdir="build/build.examples"
+            includes="**/*.scala"
+            addparams="-Xplugin:build/pack/${plugin.name}-plugin.jar">
+      <classpath>
+        <pathelement location="${scala.home}/lib/scala-library.jar"/>
+        <pathelement location="${scala.home}/lib/scala-compiler.jar"/>
+        <pathelement location="build/build.plugin"/>
+        <pathelement location="build/build.library"/>
+      </classpath>
+    </scalac>
+  </target>
+
+  <target name="build.all" depends="build.plugin, build.library, build.examples"/>
+  <target name="build.done" depends="build.all"/>
+
+  <!-- =================================================================
+  Test targets
+  ================================================================== -->
+
+  <target name="test.partest" depends="pack.plugin, build.all">
+    <partest showlog="yes" erroronfailed="yes"
+             timeout="1200000" javacmd="${java.home}/bin/java"
+	     scalacopts="-Xplugin:build/pack/${plugin.name}-plugin.jar">
+      <classpath>
+        <pathelement location="${scala.home}/lib/scala-compiler.jar" />
+        <pathelement location="${scala.home}/lib/scala-library.jar" />
+        <pathelement location="build/build.plugin"/>
+        <pathelement location="build/build.library"/>
+        <pathelement location="build/build.examples"/>
+        <fileset dir="test/files/lib" includes="*.jar"/>
+      </classpath>
+      <postests dir="test/files/pos" includes="*.scala"/>
+      <negtests dir="test/files/neg" includes="*.scala"/>
+      <runtests dir="test/files">
+        <include name="run/**/*.scala"/>
+      </runtests>
+    </partest>
+  </target>
+  
+  <target name="test.all" depends="test.partest"/>
+  <target name="test.done" depends="test.partest"/>
+    
+<!--  
+  <target name="test.all" depends="build.done">
+    <java classname="org.scalatest.tools.Runner" fork="true">
+      <classpath>
+        <pathelement location="${scala.home}/lib/scala-compiler.jar" />
+        <pathelement location="${scala.home}/lib/scala-library.jar" />
+        <pathelement location="lib/scalatest.jar" />
+        <pathelement location="build/build.main" />
+        <pathelement location="build/build.test" />
+      </classpath>
+
+      <arg value="-p" />
+      <arg value="build/build.test" />
+
+      <arg value="-o" />
+    </java>
+  </target>
+
+  <target name="guitest.all" depends="build.done">
+    <java classname="org.scalatest.tools.Runner" fork="true">
+      <classpath>
+        <pathelement location="${scala.home}/lib/scala-compiler.jar" />
+        <pathelement location="${scala.home}/lib/scala-library.jar" />
+        <pathelement location="lib/scalatest.jar" />
+        <pathelement location="build/build.main" />
+        <pathelement location="build/build.test" />
+      </classpath>
+
+      <arg value="-p" />
+      <arg value="build/build.test" />
+
+      <arg value="-g" />
+    </java>
+  </target>
+-->
+
+  <!-- =================================================================
+  Doc targets
+  ================================================================== -->
+
+  <target name="doc.library">
+    <mkdir dir="doc/api"/>
+    <scaladoc srcdir="src/library"
+              destdir="doc/api"
+              includes="**/*.scala">
+      <classpath>
+        <pathelement location="${scala.home}/lib/scala-library.jar"/>
+        <pathelement location="${scala.home}/lib/scala-compiler.jar"/>
+      </classpath>
+    </scaladoc>
+  </target>
+
+  <target name="doc.done" depends="doc.library"/>
+
+  <!-- =================================================================
+  Pack targets
+  ================================================================== -->
+
+  <target name="pack.plugin" depends="build.plugin">
+    <mkdir dir="build/pack"/>
+    <jar destfile="build/pack/${plugin.name}-plugin.jar">
+      <fileset dir="build/build.plugin"/>
+      <fileset file="plugin.properties"/>
+      <fileset file="misc/scalac-plugin.xml"/>
+    </jar>
+  </target>
+
+  <target name="pack.library" depends="build.library">
+    <mkdir dir="build/pack"/>
+    <jar destfile="build/pack/${plugin.name}-library.jar">
+      <fileset dir="build/build.plugin"/>
+      <fileset file="plugin.properties"/>
+    </jar>
+  </target>
+
+  <target name="pack.src">
+    <jar destfile="build/pack/${plugin.name}-src.jar"
+      basedir="src"
+      includes="**/*.scala"/>
+  </target>
+
+  <target name="pack.all" depends="pack.plugin,pack.library,pack.src"/>
+  <target name="pack.done" depends="pack.all"/>
+
+  <!-- =================================================================
+  Dist targets
+  ================================================================== -->
+
+  <!-- TODO: standalone tool is not applicable for our case, we only 
+  integrate into the mainline compiler -->
+
+  <target name="dist.bin" depends="test.done,pack.done,doc.done">
+    <mkdir dir="build/toolscript"/>
+    <scalascript
+      file="build/toolscript/${plugin.commandname}"
+      class="${plugin.mainclass}"/>
+    <chmod dir="build/toolscript" perm="a+rx" excludes="*.bat"/>
+  </target>
+
+  <target name="dist.archive" depends="dist.bin">
+    <mkdir dir="build/dist"/>
+    <tar destfile="build/dist/${plugin.name}-${version}.tgz"
+         compression="gzip">
+      <tarfileset prefix="lib" dir="build/pack"
+                  includes="${plugin.name}-library.jar"/>
+      <tarfileset prefix="src" dir="build/pack"
+                  includes="${plugin.name}-src.jar"/>
+      <tarfileset prefix="doc/${plugin.name}" dir="doc"
+                  includes="README"/>
+      <tarfileset prefix="doc/${plugin.name}" dir="doc"
+                  includes="examples/**"/>
+      <tarfileset prefix="doc/${plugin.name}" dir="doc"
+                  includes="api/**"/>
+      <tarfileset prefix="bin" dir="build/toolscript"
+                  includes="${plugin.commandname}" mode="755"/>
+      <tarfileset prefix="bin" dir="build/toolscript"
+                  includes="${plugin.commandname}.bat"/>
+      <tarfileset prefix="misc/scala-devel/plugins" dir="build/pack"
+                  includes="${plugin.name}-plugin.jar"/>
+    </tar>
+  </target>
+
+  <target name="dist.sbaz" depends="dist.archive">
+    <sbaz file="build/dist/${plugin.name}-${version}.sbp"
+          adfile="build/dist/${plugin.name}-${version}.advert"
+          name="${plugin.name}"
+          version="${version}"
+          depends="scala-devel"
+          desc="${plugin.description}"
+          link="${plugin.sbazbaseurl}/${plugin.name}-${version}.sbp">
+      <libset dir="build/pack" includes="${plugin.name}-library.jar"/>
+      <srcset dir="build/pack" includes="${plugin.name}-src.jar"/>
+      <docset dir="doc" includes="README"/>
+      <docset dir="doc" includes="examples/**"/>
+      <docset dir="doc" includes="api/**"/>
+      <binset dir="build/toolscript"/>
+      <looseset destination="misc/scala-devel/plugins">
+        <fileset file="build/pack/${plugin.name}-plugin.jar"/>
+      </looseset>
+    </sbaz>
+  </target>
+
+  <target name="dist.done" depends="dist.sbaz"/>
+
+  <!-- =================================================================
+  Local installation
+  ================================================================== -->
+
+  <target name="install" depends="dist.done">
+    <exec executable="sbaz">
+      <arg line="-v install -f build/dist/${plugin.name}-${version}.sbp"/>
+    </exec>
+  </target>
+
+  <target name="uninstall">
+    <exec executable="sbaz">
+      <arg line="remove ${plugin.name}"/>
+    </exec>
+  </target>
+
+  <!-- =================================================================
+  Clean targets
+  ================================================================== -->
+
+  <target name="clean.build">
+    <delete dir="build/build.main" includeemptydirs="yes"
+            quiet="yes" failonerror="no"/>
+    <delete dir="build/build.test" includeemptydirs="yes"
+            quiet="yes" failonerror="no"/>
+    <delete dir="build/build.examples" includeemptydirs="yes"
+            quiet="yes" failonerror="no"/>
+  </target>
+
+  <target name="clean.pack" depends="clean.build">
+    <delete dir="build/pack" includeemptydirs="yes"
+            quiet="yes" failonerror="no"/>
+  </target>
+
+  <target name="clean.dist" depends="clean.pack">
+    <delete dir="build/dist" includeemptydirs="yes"
+            quiet="yes" failonerror="no"/>
+    <delete dir="build/toolscript" includeemptydirs="yes"
+            quiet="yes" failonerror="no"/>
+  </target>
+
+  <target name="clean.doc">
+    <delete dir="doc/api" includeemptydirs="yes"
+            quiet="yes" failonerror="no"/>
+  </target>
+
+  <target name="clean.all" depends="clean.dist,clean.doc"/>
+</project>

@@ -81,7 +81,7 @@ object Test4 {
       if (i < max)
         pingActor(i+1)
       else
-	()
+	      shiftUnit(())
     }
     
     def pongActor():Any @cpstypes[Any,Any] = {

@@ -24,10 +24,12 @@ class SelectiveCPSTransformPlugin(val global: Global) extends Plugin {
       val global = SelectiveCPSTransformPlugin.this.global
       val runsAfter = "pickler" 
     },
+
     new SelectiveCPSTransform() { 
       val global = SelectiveCPSTransformPlugin.this.global
       val runsAfter = "selectiveanf"
     }
+
   )
 
   val checker = new CPSAnnotationChecker {

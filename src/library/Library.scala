@@ -2,7 +2,7 @@
 
 package scala.continuations
 
-class cps[-B] extends Annotation {
+class cpsv[-B] extends Annotation {
 }
 
 class uncps extends Annotation {
@@ -29,8 +29,12 @@ final class Shift[+A,-B,+C](val fun: (A => B) => C) {
 
 
 object CPS {
-
-  def shiftUnit[A,B,C](x: A): A @cpstypes[B,C] = {
+/*
+  implicit def shiftUnit0[A](x: A): A @cpstypes[A,A] = {
+    shiftUnit[A,A](x)
+  }
+*/
+  def shiftUnit[A,B,C>:B](x: A): A @cpstypes[B,C] = {
     throw new Exception("cps!")
   }
 
@@ -56,7 +60,7 @@ object CPS {
   }
 
 
-  def reset[A,C](ctx: =>(A @cpstypes[A,C])):C = {
+  def reset[A,C](ctx: =>(A @cpstypes[A,C])): C = {
     reify[A,A,C](ctx).fun((x:A) => x)
   }
 
