@@ -1,5 +1,6 @@
 // $Id$
 
+
 import scala.continuations._
 import scala.continuations.CPS._
 
@@ -26,7 +27,7 @@ object Test2 {
       Some("returnvalue")
     }
     
-    shift(fun) * 2
+    2 * shift(fun) // FIXME: doing shift(fun) * 2 yields error!!
   }
 
   // type before translation:

@@ -6,31 +6,29 @@
 
 #clear
 
-echo === compiling plugin
+#echo === compiling plugin
 
-mkdir -p target/classes
-mkdir -p target/test-classes
+#mkdir -p target/classes
+#mkdir -p target/test-classes
 
-fsc -d target/classes -cp $SCALA_HOME/classes/compiler/ src/*.scala
+#fsc -d target/classes -cp $SCALA_HOME/classes/compiler/ src/*.scala
 
-jar cf target/selectivecps.jar -C misc/ scalac-plugin.xml -C target/classes .
+#jar cf target/selectivecps.jar -C misc/ scalac-plugin.xml -C target/classes .
 
 
-echo === compiling test code using plugin
+#echo === compiling test code using plugin
 
 #scalac	-Xplugin:target/selectivecps.jar \
 
-/Users/tarq/Downloads/scala-trunk/build/quick/bin/scalac -Xplugin:target/selectivecps.jar \
+scalac -Xplugin:build/pack/selectivecps-plugin.jar \
 	-Xprint:typer \
 	-Ylog:selectiveanf \
 	-Xprint:selectiveanf \
-	-Ycheck:selectiveanf \
 	-Ylog:selectivecps \
 	-Xprint:selectivecps \
-	-Ycheck:selectivecps \
-	-d target/test-classes \
-	-cp target/classes \
-	test-src/$@.scala
+	-d build/build.examples \
+	-cp build/build.library \
+	doc/examples/scala/continuations/$@.scala
 #	test-src/Library.scala test-src/$@.scala
 
 #	-Xprint-types \
@@ -48,4 +46,4 @@ echo === compiling test code using plugin
 
 echo === running compiled test code
 
-scala -cp $SCALA_HOME/classes/compiler/:target/test-classes/ "$@"
+scala -cp $SCALA_HOME/classes/compiler/:build/build.examples/:build/build.library/ "$@"

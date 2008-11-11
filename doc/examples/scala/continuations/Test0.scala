@@ -10,7 +10,7 @@ object Test0 {
 
 
   def test0: Int = {
-    reset(4)
+    reset[Int,Int](4)
   }
 
 /*

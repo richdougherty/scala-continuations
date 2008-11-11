@@ -135,6 +135,11 @@
     </partest>
   </target>
   
+  <!-- TODO: add a test target that will run the whole scala partest 
+  suite, compiled with the plugin enabled. We wouldn't want errors
+  on that ... -->
+  
+
   <target name="test.all" depends="test.partest"/>
   <target name="test.done" depends="test.partest"/>
     
