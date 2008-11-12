@@ -29,11 +29,11 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
 
   lazy val MarkerCPS = definitions.getClass("scala.continuations.cpsv")
-  lazy val MarkerCPSTypes = definitions.getClass("scala.continuations.cpstypes")
+  lazy val MarkerCPSTypes = definitions.getClass("scala.continuations.cps")
   lazy val MarkerCPSSynth = definitions.getClass("scala.continuations.uncps")
-  lazy val Shift = definitions.getClass("scala.continuations.Shift")
+  lazy val Shift = definitions.getClass("scala.continuations.ControlContext")
 
-  lazy val ModCPS = definitions.getModule("scala.continuations.CPS")
+  lazy val ModCPS = definitions.getModule("scala.continuations.ControlContext")
   lazy val MethShiftUnit = definitions.getMember(ModCPS, "shiftUnit")
 
 
@@ -144,9 +144,16 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
             if (elsep == EmptyTree)
               unit.error(tree.pos, "always need else part in cps code")
           }
+  
+          // FIXME: annotation will not be present in deeply nested code that
+          // was converted to cps only by transExpr above!
           
-          if (hasAnswerTypeAnn(thenVal.tpe) != hasAnswerTypeAnn(elseVal.tpe)) {
+          if (!cpsR.isDefined) { // HACK: if cps is expected, we can trust it's ok (but 
+                                 // type of one alternative might still be wrong)
+                                 
+            if (hasAnswerTypeAnn(thenVal.tpe) != hasAnswerTypeAnn(elseVal.tpe)) {
               unit.error(tree.pos, "then and else part must both be cps code or neither of them")
+            }
           }
 
           (condStats, updateSynthFlag(copy.If(tree, condVal, thenVal, elseVal)), cpsR)
@@ -157,7 +164,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
           // FIXME: ref to declared label still carries old type
         
           if (hasAnswerTypeAnn(rhsVal.tpe)) {
-            unit.error(tree.pos, "cps code not (yet) allowed in while loops")
+            unit.error(tree.pos, "cps code not allowed in while loops")
           }
           
           (Nil, copy.LabelDef(tree, name, params, rhsVal), cpsR)
@@ -191,7 +198,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
       if (cpsR.isDefined && !bot.isDefined) {
         
-        if (expr.tpe.typeSymbol ne NothingClass) {
+        if (!expr.isEmpty && (expr.tpe.typeSymbol ne NothingClass)) {
           // must convert!
           log("cps type conversion (expected: " + cpsR.get + "): " + expr)
           

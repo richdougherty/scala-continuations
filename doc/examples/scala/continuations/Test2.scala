@@ -2,7 +2,7 @@
 
 
 import scala.continuations._
-import scala.continuations.CPS._
+import scala.continuations.ControlContext._
 
 
 

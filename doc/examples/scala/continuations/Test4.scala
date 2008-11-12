@@ -1,7 +1,7 @@
 // $Id$
 
 import scala.continuations._
-import scala.continuations.CPS._
+import scala.continuations.ControlContext._
 
 import scala.collection.mutable._
 
@@ -36,7 +36,7 @@ final class Mailbox[A](val name: String) {
   val values = new Queue[A]()
   val rules = new Queue[A=>Any]()
   
-  def get(): A @cpstypes[Any,Any]= {
+  def get(): A @cps[Any,Any]= {
     shift((k:(A => Any)) =>
       if (!values.isEmpty) {
         val v = values.dequeue()
@@ -62,7 +62,7 @@ final class Mailbox[A](val name: String) {
 
 object Test4 {
 
-  def stop(): Any @cpstypes[Any,Any] = shift((k:Any=>Any)=>())
+  def stop(): Any @cps[Any,Any] = shift((k:Any=>Any)=>())
 
   def testCode():Unit = {
     val ping = new Mailbox[String]("ping")
@@ -71,7 +71,7 @@ object Test4 {
     val max = 1*1000*1000
     val step = max/10
     
-    def pingActor(i: Int):Any @cpstypes[Any,Any] = {
+    def pingActor(i: Int):Any @cps[Any,Any] = {
       pong.put("ping")
       ping.get()
 
@@ -84,7 +84,7 @@ object Test4 {
 	      shiftUnit(())
     }
     
-    def pongActor():Any @cpstypes[Any,Any] = {
+    def pongActor():Any @cps[Any,Any] = {
       val x = pong.get()
 
 //    println("Pong: " + x)

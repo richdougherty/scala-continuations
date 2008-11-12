@@ -15,11 +15,11 @@ abstract class CPSAnnotationChecker {
 
 
   lazy val MarkerCPSSynth = definitions.getClass("scala.continuations.uncps")
-  lazy val MarkerCPSTypes = definitions.getClass("scala.continuations.cpstypes")
+  lazy val MarkerCPSTypes = definitions.getClass("scala.continuations.cps")
 
 
   /** 
-   *  Checks whether @cpstypes annotations conform
+   *  Checks whether @cps annotations conform
    */
 
 
@@ -199,7 +199,14 @@ abstract class CPSAnnotationChecker {
         case If(cond, thenp, elsep) =>
 
           // TODO: include then/else (or self) here?
-          transChildrenInOrder(tree, tpe, List(cond))
+          val res = transChildrenInOrder(tree, tpe, List(cond))
+          
+
+          if (thenp.tpe.attributes.isEmpty != elsep.tpe.attributes.isEmpty) {
+            // FIXME: this might give rise to problems later on
+          }
+
+          res
 
         case Block(stms, expr) =>
 

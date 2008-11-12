@@ -1,7 +1,7 @@
 // $Id$
 
 import scala.continuations._
-import scala.continuations.CPS._
+import scala.continuations.ControlContext._
 
 import scala.collection.mutable._
 
@@ -29,7 +29,7 @@ case class WithCont(v: Any, c: Channel);
 
 class Parallel(left: Channel, right: Channel) {
 
-	def !?(v: Any, w: Any):Any @cpstypes[Any,Any] = {
+	def !?(v: Any, w: Any):Any @cps[Any,Any] = {
 		shift((k:Any => Any) => {
   		val c = new Channel("c");
   		val d = new Channel("d");
@@ -59,7 +59,7 @@ class Channel(val name: String) {
 	val values = new ArrayBuffer[Any]()
 	val rules = new ArrayBuffer[Rule]()
 	
-	def !?(v: Any):Any @cpstypes[Any,Any] = {
+	def !?(v: Any):Any @cps[Any,Any] = {
 		shift((k:Any => Any) => {
   		val c = new Channel("c");
   		Join.rule { case c(x) => k(x) }
@@ -117,7 +117,7 @@ object Join {
 
 object Test3 {
 
-  def testCode(): Any @cpstypes[Any,Any] = {
+  def testCode(): Any @cps[Any,Any] = {
     val put = new Channel("put")
     val get = new Channel("get")
 

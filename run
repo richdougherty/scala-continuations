@@ -21,6 +21,7 @@
 #scalac	-Xplugin:target/selectivecps.jar \
 
 scalac -Xplugin:build/pack/selectivecps-plugin.jar \
+    -deprecation \
 	-Xprint:typer \
 	-Ylog:selectiveanf \
 	-Xprint:selectiveanf \

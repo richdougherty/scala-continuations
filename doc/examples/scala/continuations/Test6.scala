@@ -1,13 +1,13 @@
 // $Id$
 
 import scala.continuations._
-import scala.continuations.CPS._
+import scala.continuations.ControlContext._
 
 
 
 object Test6 {
 
-  def loopWhile[T](cond: =>Boolean)(body: =>(Unit @cpstypes[T,T])): Unit @cpstypes[T,T] = {
+  def loopWhile[T](cond: =>Boolean)(body: =>(Unit @cps[T,T])): Unit @cps[T,T] = {
     if (cond) {
       body
       loopWhile[T](cond)(body)
@@ -16,7 +16,7 @@ object Test6 {
   }
 
 /*
-def loopWhile[T](cond: =>Boolean)(body: =>(Unit @cpstypes[T,T])): Unit  = {
+def loopWhile[T](cond: =>Boolean)(body: =>(Unit @cps[T,T])): Unit  = {
   if (cond) {
     body
     loopWhile[T](cond)(body)

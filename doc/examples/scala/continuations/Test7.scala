@@ -1,5 +1,5 @@
 import scala.continuations._
-import scala.continuations.CPS._
+import scala.continuations.ControlContext._
 
 import scala.collection.mutable._
 
@@ -8,12 +8,12 @@ final class FutureCell[A] {
   var hasVal: Boolean = false
   val handlers = new Queue[A=>Any]()
   
-  def get(): A @cpstypes[Any,Any]= {
+  def get(): A @cps[Any,Any]= {
     shift((k:(A => Any)) =>
       if (hasVal) {
         val v = value
-//        TaskScheduler.schedule(() => k(v))
-	k(v)
+//      TaskScheduler.schedule(() => k(v))
+        k(v)
       }
       else
         handlers += k
@@ -29,7 +29,7 @@ final class FutureCell[A] {
 
     while (!handlers.isEmpty) {
       val k = handlers.dequeue()
-//      TaskScheduler.schedule(() => k(v))
+//    TaskScheduler.schedule(() => k(v))
       k(v)
     }
   }
@@ -40,47 +40,48 @@ object Test7 {
 
   abstract class DStream[A] {
     
-    // FIXME: cannot have abstract cps methods yet
+    def isEmpty: Boolean
 
-    def isEmpty: Boolean  = true
-
-    def head: A = 
-      throw new Exception("head of empty stream")
-
-    def tail: DStream[A] @cpstypes[Any,Any] = 
-      throw new Exception("tail of empty stream")
-
-    def tail_=(x: =>(DStream[A] @cpstypes[Any,Any])): Unit = 
-      throw new Exception("tail of empty stream")
-
-    def filter(p: (A=>Boolean)): DStream[A] @cpstypes[Any,Any] = this
+    def head: A
+    def tail: DStream[A] @cps[Any,Any]
+    def tail_=(x: =>(DStream[A] @cps[Any,Any])): Unit
+    
+    def filter(p: (A=>Boolean)): DStream[A] @cps[Any,Any]
   }
 
-  case class DNil[A] extends DStream[A] {
+  case class DNil[A]() extends DStream[A] {
 
+    def isEmpty = true
+
+    def head = throw new Exception("head of empty stream")
+    def tail = throw new Exception("tail of empty stream")
+    def tail_=(x: =>(DStream[A] @cps[Any,Any])) =
+      throw new Exception("setting tail of empty stream")
+
+    def filter(p: (A=>Boolean)): DStream[A] @cps[Any,Any] = this
   }
 
-  case class DCons[A](override val head: A) extends DStream[A] {
+  case class DCons[A](val head: A) extends DStream[A] {
 
-    val tl = new FutureCell[DStream[A]]
+    private val tl = new FutureCell[DStream[A]]
 
-    override def tail = tl.get()
+    def tail = tl.get()
 
-    override def tail_=(x: =>(DStream[A] @cpstypes[Any,Any])) = 
+    def tail_=(x: =>(DStream[A] @cps[Any,Any])) = 
       reset[Any,Any](tl.set(x))
 
-    override def isEmpty = false
+    def isEmpty = false
 
-    override def filter(p: (A=>Boolean)) = {
+    def filter(p: (A=>Boolean)) = {
 
       if (p(head)) {
 
-	val xs = DCons(head)
-	xs.tail = tail.filter(p)
-	shiftUnit(xs) // implicit conversion, should be 
-      }               // inserted by the compiler
+	      val xs = DCons(head)
+	      xs.tail = tail.filter(p)
+	      xs
+      }
       else
-	tail.filter(p)
+	      tail.filter(p)
     }
   }
 
@@ -88,7 +89,7 @@ object Test7 {
     println("produce " + n)
 
     if (n > max)
-      DNil[Int]
+      DNil[Int]()
     else {
       val xs = DCons[Int](n)
       xs.tail = produceRecursive(n + 1, max)
@@ -100,7 +101,7 @@ object Test7 {
     println("produce " + n)
 
     if (n > max)
-      xs.tail = DNil[Int]
+      xs.tail = DNil[Int]()
     else {
       val ys = DCons[Int](n)
       xs.tail = ys
@@ -109,20 +110,19 @@ object Test7 {
   }
 
 
-  def sieve(xs: DStream[Int]): DStream[Int] @cpstypes[Any, Any] = {
+  def sieve(xs: DStream[Int]): DStream[Int] @cps[Any, Any] = {
 
     if (!xs.isEmpty) {
-
       val zs = DCons(xs.head)
       zs.tail = sieve(xs.tail.filter(_ % xs.head != 0))
-      shiftUnit(zs) // implicit conversion, should be
-    } else {        // inserted by the compiler
+      zs
+    } else {
       xs
     }
   }
   
    
-  def consume(xs: DStream[Int]): Unit @cpstypes[Any, Any] = {
+  def consume(xs: DStream[Int]): Unit @cps[Any, Any] = {
 
     if (!xs.isEmpty) {
       println(xs.head)
@@ -144,7 +144,7 @@ object Test7 {
     produceAppending(xs,2,20)
 
 
-//    TaskScheduler.execAll()
+//  TaskScheduler.execAll()
 
   }
 

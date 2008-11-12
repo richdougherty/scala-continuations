@@ -50,12 +50,12 @@
 
   <target name="build.plugin">
     <mkdir dir="build/build.plugin"/>
-    <fsc srcdir="src/plugin"
+    <scalac srcdir="src/plugin"
         destdir="build/build.plugin"
         includes="**/*.scala"
 	addparams=""
         classpathref="scala.classpath">
-    </fsc>
+    </scalac>
   </target>
 
 <!--
@@ -234,7 +234,7 @@
   <!-- TODO: standalone tool is not applicable for our case, we only 
   integrate into the mainline compiler -->
 
-  <target name="dist.bin" depends="test.done,pack.done,doc.done">
+  <target name="dist.bin" depends="build.done,test.done,pack.done,doc.done">
     <mkdir dir="build/toolscript"/>
     <scalascript
       file="build/toolscript/${plugin.commandname}"
@@ -308,7 +308,7 @@
   ================================================================== -->
 
   <target name="clean.build">
-    <delete dir="build/build.main" includeemptydirs="yes"
+    <delete dir="build/build.plugin" includeemptydirs="yes"
             quiet="yes" failonerror="no"/>
     <delete dir="build/build.library" includeemptydirs="yes"
             quiet="yes" failonerror="no"/>

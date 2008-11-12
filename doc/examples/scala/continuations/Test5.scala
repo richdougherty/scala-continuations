@@ -1,7 +1,7 @@
 // $Id$
 
 import scala.continuations._
-import scala.continuations.CPS._
+import scala.continuations.ControlContext._
 
 import scala.collection.mutable._
 
@@ -16,8 +16,8 @@ object Test5 {
   }
 */
   
-  def parallel[A,B](a: =>(A @cpstypes[Any,Any]), 
-		    b: =>(B @cpstypes[Any,Any])): Pair[A,B] @cpstypes[Any,Any] = {
+  def parallel[A,B](a: =>(A @cps[Any,Any]), 
+		    b: =>(B @cps[Any,Any])): Pair[A,B] @cps[Any,Any] = {
 
       println("BEGIN")
 
@@ -34,7 +34,7 @@ object Test5 {
       (x,y)
   }
 
-  def testCode(): Any @cpstypes[Any,Any] = {
+  def testCode(): Any @cps[Any,Any] = {
     val ping = new Mailbox[String]("ping")
     val pong = new Mailbox[String]("pong")
 

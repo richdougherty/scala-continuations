@@ -31,11 +31,11 @@ abstract class SelectiveCPSTransform extends PluginComponent with InfoTransform 
 
 
   lazy val MarkerCPS = definitions.getClass("scala.continuations.cpsv")
-  lazy val MarkerCPSTypes = definitions.getClass("scala.continuations.cpstypes")
+  lazy val MarkerCPSTypes = definitions.getClass("scala.continuations.cps")
   lazy val MarkerUnCPS = definitions.getClass("scala.continuations.uncps")
-  lazy val Context = definitions.getClass("scala.continuations.Shift")
+  lazy val Context = definitions.getClass("scala.continuations.ControlContext")
 
-  lazy val ModCPS = definitions.getModule("scala.continuations.CPS")
+  lazy val ModCPS = definitions.getModule("scala.continuations.ControlContext")
   lazy val MethShiftUnit = definitions.getMember(ModCPS, "shiftUnit")
   lazy val MethShiftUnitR = definitions.getMember(ModCPS, "shiftUnitR")
   lazy val MethShift = definitions.getMember(ModCPS, "shift")
