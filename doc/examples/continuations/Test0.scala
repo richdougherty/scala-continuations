@@ -1,9 +1,9 @@
 // $Id$
 
+package examples.continuations
+
 import scala.continuations._
 import scala.continuations.ControlContext._
-
-
 
 
 object Test0 {
@@ -30,7 +30,7 @@ object Test0 {
       
       2 * { 
 	      println("up")
-	      val x = shift((k:Int=>Int) => k(k(k(17))))
+	      val x = shift((k:Int=>Int) => k(k(k(8))))
 	      println("down")
 	      x
       }

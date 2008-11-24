@@ -1,35 +1,12 @@
 // $Id$
 
+package examples.continuations
+
 import scala.continuations._
 import scala.continuations.ControlContext._
 
 import scala.collection.mutable._
 
-
-object TaskScheduler {
-  val runq = new Queue[()=>Unit]()
-  
-  val maxNest = 15
-  var curNest = 0
-  
-  def schedule(f:(()=>Unit)) {
-    if (curNest < maxNest) {
-      curNest += 1
-      f();
-    } else {
-      curNest = 0
-      runq += f
-    }
-  }
-  
-  def execAll() {
-    while(!runq.isEmpty) {
-      val k = runq.dequeue();
-      k()
-    }
-  }
-  
-}
 
 
 final class Mailbox[A](val name: String) {
@@ -106,15 +83,7 @@ object Test4 {
     TaskScheduler.execAll()
 
     val t1 = java.lang.System.currentTimeMillis();
-    println("dt: "+(t1-t0))
+    if (!args.contains("jvm")) println("dt: "+(t1-t0))
     
-    /*
-      expect output:
-      """
-      parallel: put(Blabla) & get()
-      inside rule body...
-      => result: ((),Blabla)
-      """
-    */
   }
 }

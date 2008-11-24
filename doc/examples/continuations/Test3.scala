@@ -1,5 +1,7 @@
 // $Id$
 
+package examples.continuations
+
 import scala.continuations._
 import scala.continuations.ControlContext._
 
@@ -121,11 +123,11 @@ object Test3 {
     val put = new Channel("put")
     val get = new Channel("get")
 
-    Join.rule { case put(x !? return_put) & get(y !? return_get)=> 
+    Join.rule { case put(x !? return_put) & get(y !? return_get) => 
       println("inside rule body..."); (return_put & return_get)!((),x) }
 
 
-    println("parallel: put(Blabla) & get()")
+    println("parallel: put(data) & get()")
 
     val combined = (put & get)
 
@@ -143,9 +145,9 @@ object Test3 {
     /*
       expect output:
       """
-      parallel: put(Blabla) & get()
+      parallel: put(data) & get()
       inside rule body...
-      => result: ((),Blabla)
+      => result: ((),data)
       """
     */
   }

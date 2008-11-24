@@ -1,5 +1,7 @@
 // $Id$
 
+package examples.continuations
+
 import scala.continuations._
 import scala.continuations.ControlContext._
 
@@ -14,16 +16,6 @@ object Test6 {
     } else
       ()
   }
-
-/*
-def loopWhile[T](cond: =>Boolean)(body: =>(Unit @cps[T,T])): Unit  = {
-  if (cond) {
-    body
-    loopWhile[T](cond)(body)
-  }
-  ()
-}
-*/
 
 
   def main(args: Array[String]) {
@@ -50,5 +42,18 @@ def loopWhile[T](cond: =>Boolean)(body: =>(Unit @cps[T,T])): Unit  = {
     }
 
     println(result)
+
+
+    /*
+      expect output:
+      """
+      6
+      5
+      4
+      3
+      aborted
+      """
+    */
+
   }
 }

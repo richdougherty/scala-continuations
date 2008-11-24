@@ -21,6 +21,7 @@
 #scalac	-Xplugin:target/selectivecps.jar \
 
 scalac -Xplugin:build/pack/selectivecps-plugin.jar \
+    -optimise \
     -deprecation \
 	-Xprint:typer \
 	-Ylog:selectiveanf \
@@ -29,7 +30,7 @@ scalac -Xplugin:build/pack/selectivecps-plugin.jar \
 	-Xprint:selectivecps \
 	-d build/build.examples \
 	-cp build/build.library \
-	doc/examples/scala/continuations/$@.scala
+	doc/examples/continuations/$@.scala
 #	test-src/Library.scala test-src/$@.scala
 
 #	-Xprint-types \
@@ -47,4 +48,4 @@ scalac -Xplugin:build/pack/selectivecps-plugin.jar \
 
 echo === running compiled test code
 
-scala -cp $SCALA_HOME/classes/compiler/:build/build.examples/:build/build.library/ "$@"
+scala -cp $SCALA_HOME/classes/compiler/:build/build.examples/:build/build.library/ "examples.continuations.$@"

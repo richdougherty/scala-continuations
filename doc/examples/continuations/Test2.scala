@@ -1,5 +1,7 @@
 // $Id$
 
+package examples.continuations
+
 
 import scala.continuations._
 import scala.continuations.ControlContext._
@@ -52,25 +54,6 @@ object Test2 {
     val result = reset(methB())
 
     println(result)
-
-    // so far, there's a type cast in reset
-    //
-    // possible options to get rid of it:
-    //
-    //   - erase types during transformation and re-type
-    //     program afterwards (slow)
-    //   - control flow analysis during transformation
-    //     (not easy to do, problems with hof's)
-    //   - use annotations @cps[A,B], possibly with
-    //     default case @cps = @cps[Unit,Unit]
-    //
-    // Chose option #3, but with additional annotation 
-    // attached to the result type. Reason: type vars are
-    // not accessible in method annotation.
-    // There is a shorthand, though: With @cps[A], the
-    // 2nd parameter can be given.
-    // And we use Any,Any as default case, not Unit.
-
     
     /*
       expect output:

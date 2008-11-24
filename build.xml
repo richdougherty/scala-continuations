@@ -95,9 +95,9 @@
 
   <target name="build.examples" depends="pack.plugin,build.library">
     <mkdir dir="build/build.examples"/>
-    <scalac srcdir="doc/examples"
+    <scalac srcdir="doc"
             destdir="build/build.examples"
-            includes="**/*.scala"
+            includes="examples/**/*.scala"
             addparams="-Xplugin:build/pack/${plugin.name}-plugin.jar">
       <classpath>
         <pathelement location="${scala.home}/lib/scala-library.jar"/>
@@ -117,7 +117,7 @@
 
   <target name="test.partest" depends="pack.plugin, build.all">
     <partest showlog="yes" erroronfailed="yes"
-             timeout="1200000" javacmd="${java.home}/bin/java"
+             timeout="60000" javacmd="${java.home}/bin/java"
 	     scalacopts="-Xplugin:build/pack/${plugin.name}-plugin.jar">
       <classpath>
         <pathelement location="${scala.home}/lib/scala-compiler.jar" />

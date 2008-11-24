@@ -1,0 +1,8 @@
+before parallel
+BEGIN
+before get
+before put
+after get: secret
+after put
+END
+after parallel: (secret,())

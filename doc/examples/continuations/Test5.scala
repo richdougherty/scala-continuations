@@ -1,5 +1,7 @@
 // $Id$
 
+package examples.continuations
+
 import scala.continuations._
 import scala.continuations.ControlContext._
 
@@ -49,6 +51,7 @@ object Test5 {
         println("before put")
         ping.put("secret")
         println("after put")
+//        shiftUnit[Int,Any,Any](0)
     })
     
     println("after parallel: " + z)
@@ -63,7 +66,7 @@ object Test5 {
     TaskScheduler.execAll()
     
     val t1 = java.lang.System.currentTimeMillis();
-    println("dt: "+(t1-t0))
+    if (!args.contains("jvm")) println("dt: "+(t1-t0))
     
     /*
       expect output:
@@ -75,7 +78,7 @@ object Test5 {
       after get: secret
       after put
       END
-      after parallel: (secret,0)
+      after parallel: (secret,())
       """
     */
   }

@@ -1,3 +1,7 @@
+// $Id$
+
+package examples.continuations
+
 import scala.continuations._
 import scala.continuations.ControlContext._
 

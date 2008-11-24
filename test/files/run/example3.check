@@ -1,0 +1,3 @@
+parallel: put(data) & get()
+inside rule body...
+=> result: ((),data)

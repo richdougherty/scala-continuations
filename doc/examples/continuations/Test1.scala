@@ -1,5 +1,7 @@
 // $Id$
 
+package examples.continuations
+
 import scala.continuations._
 import scala.continuations.ControlContext._
 
@@ -27,14 +29,6 @@ object Test1 {
     // ((((((17 + 1) * 2) + 1) * 2) + 1) * 2) = 150
     
     println(result)
-    
-    /*
-      expect output:
-      """
-      150
-      """
-    */
-    
   }
 
 }

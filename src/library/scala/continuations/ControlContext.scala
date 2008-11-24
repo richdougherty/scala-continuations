@@ -11,12 +11,12 @@ class cps[-B,+C] extends TypeConstraint
 
 final class ControlContext[+A,-B,+C](val fun: (A => B) => C) {
   
-  final def map[D](f: (A => D)) = {
-    new ControlContext((g:(D => B)) => fun((x:A) => g(f(x))))
+  final def map[A1](f: (A => A1)): ControlContext[A1,B,C] = {
+    new ControlContext((k:(A1 => B)) => fun((x:A) => k(f(x))))
   }
   
-  final def flatMap[D,E<:B](f: (A => ControlContext[D,E,B])): ControlContext[D,E,C] = {
-    new ControlContext((g:(D => E)) => fun((x:A) => f(x).fun(g)))
+  final def flatMap[A1,B1<:B](f: (A => ControlContext[A1,B1,B])): ControlContext[A1,B1,C] = {
+    new ControlContext((k:(A1 => B1)) => fun((x:A) => f(x).fun(k)))
   }
 
 }
