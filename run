@@ -18,9 +18,9 @@
 
 #echo === compiling test code using plugin
 
-#scalac	-Xplugin:target/selectivecps.jar \
+#scalac -Xplugin:build/pack/selectivecps-plugin.jar \
 
-scalac -Xplugin:build/pack/selectivecps-plugin.jar \
+$SCALA_HOME/../quick/bin/scalac -Xplugin:build/pack/selectivecps-plugin.jar \
     -optimise \
     -deprecation \
 	-Xprint:typer \
@@ -41,7 +41,6 @@ scalac -Xplugin:build/pack/selectivecps-plugin.jar \
 #	-Ybrowse:selectivecps \
 #   -Ycheck:superaccessors \
 
-#scalac	-Xplugin:target/selectivecps.jar -d target/test-classes test-src/Library.scala test-src/Test4.scala
 
 
 

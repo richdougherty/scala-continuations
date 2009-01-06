@@ -34,11 +34,9 @@ private class uncps extends Annotation
 
 object ControlContext {
 
-/*
-  implicit def shiftUnit0[A](x: A): A @cps[A,A] = {
-    shiftUnit[A,A](x)
+  implicit def shiftUnit0[A,B](x: A): A @cps[B,B] = {
+    shiftUnit[A,B,B](x)
   }
-*/
 
   def shiftUnit[A,B,C>:B](x: A): A @cps[B,C] = {
     throw new Exception("cps!")

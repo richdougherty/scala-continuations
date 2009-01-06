@@ -13,14 +13,14 @@ object Test6 {
     if (cond) {
       body
       loopWhile[T](cond)(body)
-    } else
+    } else 
       ()
   }
 
 
   def main(args: Array[String]) {
 
-    val result = reset {
+    val result = reset[String,String] {
 
       var x = 7
       

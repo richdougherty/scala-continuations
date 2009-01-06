@@ -12,12 +12,13 @@ import scala.tools.nsc.ast._
 /** 
  * In methods marked @cps, explicitly name results of calls to other @cps methods
  */
-abstract class SelectiveANFTransform extends PluginComponent with Transform with TypingTransformers {
+abstract class SelectiveANFTransform extends PluginComponent with Transform with
+  TypingTransformers with CPSUtils {
   // inherits abstract value `global' and class `Phase' from Transform
 
   import global._                  // the global environment
   import definitions._             // standard classes and methods
-  import typer.{atOwner}           // methods to type trees
+  import typer.atOwner             // methods to type trees
   import posAssigner.atPos         // for filling in tree positions 
 
   /** the following two members override abstract members in Transform */
@@ -27,24 +28,23 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
     new ANFTransformer(unit)
 
 
-
-  lazy val MarkerCPS = definitions.getClass("scala.continuations.cpsv")
-  lazy val MarkerCPSTypes = definitions.getClass("scala.continuations.cps")
-  lazy val MarkerCPSSynth = definitions.getClass("scala.continuations.uncps")
-  lazy val Shift = definitions.getClass("scala.continuations.ControlContext")
-
-  lazy val ModCPS = definitions.getModule("scala.continuations.ControlContext")
-  lazy val MethShiftUnit = definitions.getMember(ModCPS, "shiftUnit")
-
-
   class ANFTransformer(unit: CompilationUnit) extends TypingTransformer(unit) {
+
+    var cpsAllowed: Boolean = false // detect cps code in places we do not handle yet
 
     override def transform(tree: Tree): Tree = {
       tree match {
-        
-        case dd @ DefDef(mods, name, tparams, vparamss, tpt, rhs)
-          if (!dd.symbol.isConstructor) => // TODO: remove? This is just to make output less verbose...
 
+        // TODO: Maybe we should generalize the transform and move it over to
+        // the regular Transformer facility. But then, actual and required cps
+        // state would need more complicated (stateful!) tracking. 
+        
+        // Making the default case use transExpr(tree, None, None) instead of
+        // calling super.transform() would be a start, but at the moment,
+        // this would cause infinite recursion. But we could remove the
+        // ValDef case here.
+        
+        case dd @ DefDef(mods, name, tparams, vparamss, tpt, rhs) =>
           log("transforming " + dd.symbol)
 
           atOwner(dd.symbol) {
@@ -57,43 +57,48 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
                         transform(tpt), rhs1)
           }
 
-        case _ => 
-        
-          if (hasAnswerTypeAnn(tree.tpe))
-            log(tree)
-        
+        case ff @ Function(vparams, body) =>
+          log("transforming anon function " + ff.symbol)
+
+          atOwner(ff.symbol) {
+            val body1 = transExpr(body, None, getAnswerTypeAnn(body.tpe))
+    
+            log("result "+body1)
+            log("result is of type "+body1.tpe)
+
+            copy.Function(ff, transformValDefs(vparams), body1)
+          }
+
+        case vd @ ValDef(mods, name, tpt, rhs) => // object-level valdefs
+          log("transforming valdef " + vd.symbol)
+
+          atOwner(vd.symbol) {
+
+            assert(getAnswerTypeAnn(tpt.tpe) == None)
+
+            val rhs1 = transExpr(rhs, None, None)
+
+            copy.ValDef(vd, mods, name, transform(tpt), rhs1)
+          }
+
+        case TypeTree() =>
+          // circumvent cpsAllowed here
           super.transform(tree)
+        
+        case _ => 
+          
+          if (hasAnswerTypeAnn(tree.tpe)) {
+            if (!cpsAllowed)
+              unit.error(tree.pos, "cps code not allowed here / " + tree.getClass + " / " + tree)
+
+            log(tree)
+          }
+
+          cpsAllowed = false
+          super.transform(tree)            
       }
     }
 
-
-    def getAnswerTypeAnn(tp: Type) = {
-      // TODO: what about multiple annotations?
-      tp.attributes.find(a => a.atp.typeSymbol == MarkerCPSTypes) match {
-        case Some(AnnotationInfo(atp, _, _)) => Some((atp.typeArgs(0), atp.typeArgs(1)))
-        case None => None
-      }
-    }
-
-    def hasAnswerTypeAnn(tp: Type) = {
-      tp.attributes.exists(a => a.atp.typeSymbol == MarkerCPSTypes)
-    }
-
-    def hasSynthAnn(tp: Type) = {
-      tp.attributes.exists(a => a.atp.typeSymbol == MarkerCPSSynth)
-    }
-
-    def updateSynthFlag(tree: Tree) = {
-      if (hasSynthAnn(tree.tpe)) {
-        log("removing annotation from " + tree)
-        tree.setType(tree.tpe.withoutAttributes) // TODO: remove only ours
-      } else
-        tree
-    }
-
-
-
-    type CPSInfo = Option[(Type,Type)]
 
     def transExpr(tree: Tree, cpsA: CPSInfo, cpsR: CPSInfo): Tree = {
       transTailValue(tree, cpsA, cpsR) match {
@@ -132,14 +137,8 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
         
           val (a, b) = transBlock(stms, expr, cpsA2, cpsR2)
           
-          val tree1 = copy.Block(tree, a, b)
-          
-/*          if (cpsR.isDefined) {
-            if (!hasAnswerTypeAnn(tree.tpe)) {  // meaning we inserted an implicit!
-              tree1.tpe = b.tpe // should just take annotation from cpsR...
-            }
-          }
-*/          
+          val tree1 = copy.Block(tree, a, b) // no updateSynthFlag here!!!
+
           (Nil, tree1, cpsA) //cpsR)
 
         case If(cond, thenp, elsep) =>
@@ -150,9 +149,6 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
           val thenVal = transExpr(thenp, cpsA2, cpsR2)
           val elseVal = transExpr(elsep, cpsA2, cpsR2)
           
-//          val elseVal = transExpr(if (cps.isDefined && elsep == EmptyTree)
-//          Literal(()).setType(UnitClass.tpe).setPos(tree.pos) else elsep, cps)
-        
           // TODO: check that then and else parts agree
           
           if (cpsR.isDefined) {
@@ -164,27 +160,70 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
             unit.error(tree.pos, "then and else parts must both be cps code or neither of them")
           }
 
-          (condStats, updateSynthFlag(copy.If(tree, condVal, thenVal, elseVal)), spc) //cpsR orElse spc)
+          (condStats, updateSynthFlag(copy.If(tree, condVal, thenVal, elseVal)), spc)
 
-        case LabelDef(name, params, rhs) =>
-          val rhsVal = transExpr(rhs, cpsA, cpsR)
-
-          // FIXME: ref to declared label still carries old type
+        case Match(selector, cases) =>
         
-          if (hasAnswerTypeAnn(rhsVal.tpe)) {
-            unit.error(tree.pos, "cps code not allowed in while loops")
+          val (selStats, selVal, spc) = transInlineValue(selector, cpsA)
+          val (cpsA2, cpsR2) = (None, getAnswerTypeAnn(tree.tpe))
+
+          val caseVals = for {
+            cd @ CaseDef(pat, guard, body) <- cases
+            val bodyVal = transExpr(body, cpsA2, cpsR2)
+          } yield {
+            copy.CaseDef(cd, transform(pat), transform(guard), bodyVal)
           }
           
-          (Nil, copy.LabelDef(tree, name, params, rhsVal), cpsA)
+          (selStats, updateSynthFlag(copy.Match(tree, selVal, caseVals)), spc)
+
+
+        case LabelDef(name, params, rhs) =>
+           // no cps code allowed in while loop!
+          val rhsVal = transExpr(rhs, None, None)
+
+          (Nil, updateSynthFlag(copy.LabelDef(tree, name, params, rhsVal)), cpsA)
           
-        
-        case Select(qual, name) =>
-          val (stms, expr, spc) = transInlineValue(qual, cpsA)
-          (stms, updateSynthFlag(copy.Select(tree, expr, name)), spc)
+
+        case Try(block, catches, finalizer) =>
+          // no cps code allowed in try/catch/finally!
+          val blockVal = transExpr(block, None, None)
+          
+          val catchVals = for {
+            cd @ CaseDef(pat, guard, body) <- catches
+            val bodyVal = transExpr(body, None, None)
+          } yield {
+            copy.CaseDef(cd, transform(pat), transform(guard), bodyVal)
+          }
+
+          val finallyVal = transExpr(finalizer, None, None)
+          
+          (Nil, updateSynthFlag(copy.Try(tree, blockVal, catchVals, finallyVal)), cpsA)
+
+        case Assign(lhs, rhs) =>
+          // allow cps code in rhs only
+          val (stms, expr, spc) = transInlineValue(rhs, cpsA)
+          (stms, updateSynthFlag(copy.Assign(tree, transform(lhs), expr)), spc)
+          
+        case Return(expr0) =>
+          val (stms, expr, spc) = transInlineValue(expr0, cpsA)
+          (stms, updateSynthFlag(copy.Return(tree, expr)), spc)
+
+        case Throw(expr0) =>
+          val (stms, expr, spc) = transInlineValue(expr0, cpsA)
+          (stms, updateSynthFlag(copy.Throw(tree, expr)), spc)
+
+        case Typed(expr0, tpt) =>
+          // TODO: treat x: A @cps[B,C] specially?
+          val (stms, expr, spc) = transInlineValue(expr0, cpsA)
+          (stms, updateSynthFlag(copy.Typed(tree, expr, tpt)), spc)
 
         case TypeApply(fun, args) =>
           val (stms, expr, spc) = transInlineValue(fun, cpsA)
           (stms, updateSynthFlag(copy.TypeApply(tree, expr, args)), spc)
+
+        case Select(qual, name) =>
+          val (stms, expr, spc) = transInlineValue(qual, cpsA)
+          (stms, updateSynthFlag(copy.Select(tree, expr, name)), spc)
 
         case Apply(fun, args) =>
           val (funStm, funExpr, funSpc) = transInlineValue(fun, cpsA)
@@ -194,6 +233,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
             argSpc)
 
         case _ =>
+          cpsAllowed = true
           (Nil, transform(tree), cpsA)
       }
     }
@@ -202,7 +242,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
       
       val (stms, expr, spc) = transValue(tree, cpsA, cpsR)
 
-      val bot = getAnswerTypeAnn(expr.tpe) orElse spc
+      val bot = linearize(spc, getAnswerTypeAnn(expr.tpe))
 
       if (cpsR.isDefined && !bot.isDefined) {
         
@@ -235,7 +275,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
       } else {
         // all is well
         
-        // TODO: check that types agree. but need to get rid of 'orElse's before
+        // TODO: check that types agree
       }
 
       (stms, expr)
@@ -256,7 +296,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
                       .setAttributes(List(AnnotationInfo(MarkerCPS.tpe, Nil, Nil)))        
 
           (stms ::: List(ValDef(sym, expr) setType(NoType)),
-             Ident(sym) setType(valueTpe) setPos(tree.pos), spcVal orElse spc)
+             Ident(sym) setType(valueTpe) setPos(tree.pos), linearize(spc, spcVal))
 
         case _ =>
           (stms, expr, spc)
@@ -265,6 +305,36 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
     }
 
 
+
+    def transInlineStm(stm: Tree, cpsA: CPSInfo):  (List[Tree], CPSInfo) = {
+      stm match {
+
+        // TODO: what about DefDefs?
+        // TODO: relation to top-level val def?
+
+        case tree @ ValDef(mods, name, tpt, rhs) =>
+          val (stms, anfRhs, spc) = atOwner(tree.symbol) { transValue(rhs, cpsA, None) }
+        
+          val tv = new ChangeOwnerTraverser(tree.symbol, currentOwner)
+          stms.foreach(tv.traverse(_))
+
+          // TODO: symbol might already have annotation. Should check conformance
+          // TODO: better yet: do without annotations on symbols
+          
+          val spcVal = getAnswerTypeAnn(anfRhs.tpe)
+          if (spcVal.isDefined) {
+              tree.symbol.setAttributes(List(AnnotationInfo(MarkerCPS.tpe, Nil, Nil))) // TODO: don't remove others!
+          }
+          
+          (stms:::List(copy.ValDef(tree, mods, name, tpt, anfRhs)), linearize(spc, spcVal))
+
+        case _ =>
+          val (headStms, headExpr, headSpc) = transInlineValue(stm, cpsA)
+          val valSpc = getAnswerTypeAnn(headExpr.tpe)
+          (headStms:::List(headExpr), linearize(headSpc, valSpc))
+      }
+    }
+
     def transBlock(stms: List[Tree], expr: Tree, cpsA: CPSInfo, cpsR: CPSInfo): (List[Tree], Tree) = {
       stms match {
         case Nil =>
@@ -272,30 +342,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
         case stm::rest =>
           var (rest2, expr2) = (rest, expr)
-          val (headStms, headSpc) = stm match {
-
-            // TODO: what about DefDefs?
-
-            case tree@ValDef(mods, name, tpt, rhs) =>
-              val (stms, anfRhs, spc) = atOwner(tree.symbol) { transValue(rhs, cpsA, None) }
-            
-              val tv = new ChangeOwnerTraverser(tree.symbol, currentOwner)
-              stms.foreach(tv.traverse(_))
-
-              // TODO: symbol might already have annotation. Should check conformance
-
-              val spcVal = getAnswerTypeAnn(anfRhs.tpe)
-              if (spcVal.isDefined) {
-                  tree.symbol.setAttributes(List(AnnotationInfo(MarkerCPS.tpe, Nil, Nil))) // TODO: don't remove others!
-              }
-              
-              (stms:::List(copy.ValDef(tree, mods, name, tpt, anfRhs)), spcVal orElse spc)
-
-            case _ =>
-              val (headStms, headExpr, headSpc) = transInlineValue(stm, cpsA)
-              val valSpc = getAnswerTypeAnn(headExpr.tpe)
-              (headStms:::List(headExpr), valSpc orElse headSpc)
-          }
+          val (headStms, headSpc) = transInlineStm(stm, cpsA)
           val (restStms, restExpr) = transBlock(rest2, expr2, headSpc, cpsR)
           (headStms:::restStms, restExpr)
        }

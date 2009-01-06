@@ -4,18 +4,13 @@ package scala.continuations
 
 import scala.tools.nsc.Global
 
-abstract class CPSAnnotationChecker {
+abstract class CPSAnnotationChecker extends CPSUtils {
   val global: Global
   import global._
   import definitions._
 
-  val verbose = false
+//  override val verbose = true
 
-  def vprintln(x: Any): Unit = if (verbose) println(x)
-
-
-  lazy val MarkerCPSSynth = definitions.getClass("scala.continuations.uncps")
-  lazy val MarkerCPSTypes = definitions.getClass("scala.continuations.cps")
 
 
   /** 
@@ -23,22 +18,12 @@ abstract class CPSAnnotationChecker {
    */
 
 
-  def filterAttribs(tpe:Type, cls:Symbol) = {
-    def byClass(cls: Symbol)(a: AnnotationInfo) = a match {
-      case AnnotationInfo(tp, _, _) if tp.typeSymbol == cls => true
-      case _ => false
-    }
-      
-    tpe.attributes.filter(byClass(cls))
-  }
-
-
   object checker extends AnnotationChecker {
 
     /** Check annotations to decide whether tpe1 <:< tpe2 */
     def annotationsConform(tpe1: Type, tpe2: Type): Boolean = {
 
-      vprintln("check annotations: " + tpe1 + " <:< " + tpe2)
+//      vprintln("check annotations: " + tpe1 + " <:< " + tpe2)
 
       if (tpe1.typeSymbol eq NothingClass)
         return true
@@ -51,6 +36,9 @@ abstract class CPSAnnotationChecker {
       // before we get a chance to install the correct annotations
       // which would make them pass the ckeck.
       
+//      return attribs2.forall(a2 => attribs1.exists(a1 => a1.atp <:< a2.atp))
+
+
       // Update: there seem to be errors nonetheless...
       
 /*
@@ -61,31 +49,6 @@ abstract class CPSAnnotationChecker {
     }
 
 
-    def linearize(ann: List[AnnotationInfo]): List[AnnotationInfo] = {
-      // TODO: must fold together
-      val synth = ann.filter(a => a.atp.typeSymbol == MarkerCPSSynth) match {
-        case x::xs => List(x)
-        case Nil => List()
-      }
-      val types = ann.filter(a => a.atp.typeSymbol == MarkerCPSTypes) match {
-        case x::xs => List(x)
-        case Nil => List()
-      }
-      synth:::types
-    }
-
-    def unify(ann: List[AnnotationInfo]): List[AnnotationInfo] = {
-      // TODO: must find infimum
-      val synth = ann.filter(a => a.atp.typeSymbol == MarkerCPSSynth) match {
-        case x::xs => List(x)
-        case Nil => List()
-      }
-      val types = ann.filter(a => a.atp.typeSymbol == MarkerCPSTypes) match {
-        case x::xs => List(x)
-        case Nil => List()
-      }
-      synth:::types
-    }
 
     
     def updateAttributes(tpe: Type, attribs: List[AnnotationInfo]): Type = {
@@ -93,7 +56,7 @@ abstract class CPSAnnotationChecker {
         // Need to push attribs into each alternative of overloaded type
         
         // But we can't, since alternatives aren't types but symbols, which we
-        // can't change (we'd be affecting symbol globally)
+        // can't change (we'd be affecting symbols globally)
         
         /*
         case OverloadedType(pre, alts) =>
@@ -145,7 +108,6 @@ abstract class CPSAnnotationChecker {
     }
 
 
-
     def transChildrenInOrder(tree: Tree, tpe: Type, childTrees: List[Tree]) = {
       val children = childTrees.flatMap((t:Tree) => filterAttribs(t.tpe, MarkerCPSTypes))
                             
@@ -193,39 +155,40 @@ abstract class CPSAnnotationChecker {
 
           vprintln("[checker] checking select " + tree + "/" + tpe)
 
-//          transChildrenInOrder(tree, tpe, List(qual))
+          // FIXME: but it back in?? (problem with test cases select.scala and Test2.scala)
+          // transChildrenInOrder(tree, tpe, List(qual))
           tpe
 
         case If(cond, thenp, elsep) =>
 
-          // TODO: include then/else (or self) here?
           val res = transChildrenInOrder(tree, tpe, List(cond))
           
-
-          if (thenp.tpe.attributes.isEmpty != elsep.tpe.attributes.isEmpty) {
-            // FIXME: this might give rise to problems later on
-          }
-
+          // additional requirements:
+          // 1) always need a then-part in cps code
+          // 2) either then and else must both be cps or none of them
+          // for now, leave these checks to SelectiveANF
+          
           res
+
+        case Match(select, cases) =>
+
+          transChildrenInOrder(tree, tpe, List(select))
 
         case Block(stms, expr) =>
 
-          // if any stm has annotations, so does block
+          // if any stm has annotation, so does block
           transChildrenInOrder(tree, tpe, transStms(stms))
+
 
         case ValDef(mods, name, tpt, rhs) =>
           vprintln("[checker] checking valdef " + name + "/"+tpe+"/"+tpt+"/"+tree.symbol.tpe)
 
-          // TODO: error for valdefs outside methods?
-          // might check for tree.symbol.owner.isTerm
+          // ValDef symbols must *not* have annotations!
 
-          if (!tree.symbol.info.attributes.isEmpty) {
-            // TODO: is it okay to modify sym here?
-
+          if (hasAnswerTypeAnn(tree.symbol.info)) { // is it okay to modify sym here?
             tpt.setType(tpt.tpe.withoutAttributes) // TODO: only remove our attribs
             tree.symbol.setInfo(tree.symbol.info.withoutAttributes)
           }
-
           tpe
 
         case _ =>
