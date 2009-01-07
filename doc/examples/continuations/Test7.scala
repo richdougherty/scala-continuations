@@ -41,7 +41,6 @@ final class FutureCell[A] {
 
 object Test7 {
 
-
   abstract class DStream[A] {
     
     def isEmpty: Boolean
@@ -144,12 +143,9 @@ object Test7 {
       consume(sieve(xs))
     }
 
-
     produceAppending(xs,2,20)
 
-
 //  TaskScheduler.execAll()
-
   }
 
 

@@ -34,6 +34,9 @@ private class uncps extends Annotation
 
 object ControlContext {
 
+  type suspendable = cps[Unit,Unit]
+  
+
   implicit def shiftUnit0[A,B](x: A): A @cps[B,B] = {
     shiftUnit[A,B,B](x)
   }
@@ -66,6 +69,10 @@ object ControlContext {
 
   def reset[A,C](ctx: =>(A @cps[A,C])): C = {
     reify[A,A,C](ctx).fun((x:A) => x)
+  }
+
+  def run[A](ctx: =>(Any @cps[Unit,A])): A = {
+    reify[Any,Unit,A](ctx).fun((x:Any) => ())
   }
 
   

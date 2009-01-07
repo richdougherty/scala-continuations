@@ -8,15 +8,6 @@ import scala.continuations.ControlContext._
 import scala.collection.mutable._
 
 object Test5 {
-
-/*  
-  implicit def delay[A](a: =>Context[A]) = {
-    object Delayed {
-      def &[B](b: =>Context[B]) = parallel(a,b)
-    }
-    Delayed
-  }
-*/
   
   def parallel[A,B](a: =>(A @cps[Any,Any]), 
 		    b: =>(B @cps[Any,Any])): Pair[A,B] @cps[Any,Any] = {
