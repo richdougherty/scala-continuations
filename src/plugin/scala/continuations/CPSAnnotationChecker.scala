@@ -109,6 +109,7 @@ abstract class CPSAnnotationChecker extends CPSUtils {
 
 
     def transChildrenInOrder(tree: Tree, tpe: Type, childTrees: List[Tree]) = {
+      // FIXME: npe
       val children = childTrees.flatMap((t:Tree) => filterAttribs(t.tpe, MarkerCPSTypes))
                             
       val newtpe = updateAttributes(tpe, linearize(children))

@@ -126,7 +126,9 @@ object Test8 {
   implicit def block2ParSeq[A](x: =>(A @cps[Unit,Unit])) = ParSeq(() => x)
 
   
-
+  // -----------------------------------------------------------------------------
+  // client code starts here
+  // -----------------------------------------------------------------------------  
 
   def testCode(): Unit @cps[Unit,Unit] = {
 
@@ -138,23 +140,19 @@ object Test8 {
 
         println("inside rule body (exchanging value " + x + ")")
         
-        // implicit doesn't work yet (see ticket #1625)
-        
-        block2ParSeq(return_put()) <&> return_get(x)
+        return_put() <&> return_get(x)
     }
 
 
     println("starting up...")
 
-    // implicit doesn't work yet (see ticket #1625)
-    
-    val res = block2ParSeq({
+    val res = {
       produce("item 1")
       produce("item 2")
       produce("item 3")
       produce("item 4")
       "done producing"
-    }) <&> {
+    } <&> {
       println("received: " + consume())
       println("received: " + consume())
       println("received: " + consume())

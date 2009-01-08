@@ -37,7 +37,7 @@ object ControlContext {
   type suspendable = cps[Unit,Unit]
   
 
-  implicit def shiftUnit0[A,B](x: A): A @cps[B,B] = {
+  def shiftUnit0[A,B](x: A): A @cps[B,B] = {
     shiftUnit[A,B,B](x)
   }
 
