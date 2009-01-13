@@ -1,2 +1,2 @@
-reflecting lists: List(2, 4, 6, 8, 10)
+reflecting lists: List((x,4), (x,5), (x,6), (y,4), (y,5), (y,6), (z,4), (z,5), (z,6))
 reflecting options: Some(after catching failure)

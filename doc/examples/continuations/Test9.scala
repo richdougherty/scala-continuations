@@ -22,13 +22,13 @@ object Test9 {
   }
 
   implicit def reflective[A](xs:Iterable[A]) = new Reflective[A,Iterable](xs)
-  implicit def reflective[A](xs:Option[A]) = new Reflective[A,Option](xs)
+  implicit def reflective[A](xs:Option[A]) = new Reflective[A,Option](xs) 
   
 
   def main(args: Array[String]) = {
 
     println("reflecting lists: " + reset {
-      List(2 * List(1,2,3,4,5).reflect[Int])
+      List((List("x","y","z").reflect[Any], List(4,5,6).reflect[Any]))
     })
   
     println("reflecting options: " +  reset {
@@ -39,7 +39,7 @@ object Test9 {
       
 //      def tryCatch[A](a: =>comp[A], b: =>comp[A]): comp[A] = { // doesn't work ?!?
         
-      def tryCatch[A](a: =>(A @cps[Option[A], Option[A]]),
+      def tryCatch[A](a: =>(A @cps[Option[A], Option[A]]))(
         b: =>(A @cps[Option[A], Option[A]])): 
             (A @cps[Option[A], Option[A]]) = {
         
@@ -50,12 +50,12 @@ object Test9 {
       }
       
       
-      val x = tryCatch({
+      val x = tryCatch {
         mightFail()
         "after failure"
-      }, {
+      } {
         "after catching failure"
-      })
+      }
       
       Some(x)
     })

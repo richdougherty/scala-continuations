@@ -20,7 +20,7 @@ object Test6 {
 
   def main(args: Array[String]) {
 
-    val result = reset[String,String] {
+    val result = reset[Any,Any] { // should be [String,String]
 
       var x = 7
       

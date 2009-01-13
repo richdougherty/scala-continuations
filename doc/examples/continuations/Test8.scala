@@ -79,8 +79,9 @@ object Test8 {
   }
 
   object !? {
-  	def unapply[A,B](v: ValBase[A,B]) = v match {
+  	def unapply[A,B](v: ValBase[A,B]): Option[(A, (B=>(Any @suspendable)))] = v match {
   		case ValWithCont(x, c) => Some((x,c))
+  		case Definator(rule) => Some((null.asInstanceOf[A],null.asInstanceOf))
   	}
   }
 
@@ -91,7 +92,7 @@ object Test8 {
     	val rule = new Rule[Any,Any](pf)
     	pf.isDefinedAt(Definator(rule))
 
-  //  rule.activateIfPossible();
+      rule.activateIfPossible()
     }
   
   }
@@ -128,35 +129,104 @@ object Test8 {
   
   // -----------------------------------------------------------------------------
   // client code starts here
-  // -----------------------------------------------------------------------------  
+  // -----------------------------------------------------------------------------
 
-  def testCode(): Unit @cps[Unit,Unit] = {
+  abstract class ProduceConsume[A] {
+    val produce = new (A ==> Unit)
+    val consume = new (Unit ==> A)
+  }
 
-    val produce = new (String ==> Unit)
-    val consume = new (Unit ==> String)
-
+  class SynchProduceConsume[A] extends ProduceConsume[A] {
     Join.rule {
-      case produce(x !? return_put) <&> consume(y !? return_get) => 
-
+      case produce(x !? return_put) <&> consume(_ !? return_get) => 
         println("inside rule body (exchanging value " + x + ")")
-        
         return_put() <&> return_get(x)
     }
+  }
 
+
+  class Asynch1ProduceConsume[A] extends ProduceConsume[A] {
+    
+    val item = new (A ==> Unit)
+    
+    Join.rule {
+      case produce(x !? return_put) => 
+        return_put() <&> item(x)
+    }
+
+    Join.rule {
+      case consume(_ !? return_get) <&> item(x !? _) => 
+        println("inside rule body (exchanging value " + x + ")")
+        return_get(x)
+    }
+  }
+
+  class Asynch2ProduceConsume[A] extends ProduceConsume[A] {
+    
+    val item = new (List[A] ==> Unit)
+    
+    Join.rule {
+      case produce(x !? return_put) & item(xs !? _)=> 
+        return_put() <&> item(xs ::: List(x))
+    }
+
+    Join.rule {
+      case consume(_ !? return_get) <&> item((x::xs) !? _) => 
+        println("inside rule body (exchanging value " + x + ")")
+        return_get(x) <&> item(xs)
+    }
+
+    run {
+      item(Nil)
+    }
+  }
+
+  class Asynch3ProduceConsume[A] extends ProduceConsume[A] {
+    
+    case class Elem(x: A, next: Unit ==> Elem)
+    
+    val last = new ((Unit ==> Elem) ==> Unit)
+    val first = new ((Unit ==> Elem) ==> Unit)
+    
+    Join.rule {
+      case produce(x !? return_put) & last(elem !? _) => 
+        val next = new (Unit ==> Elem)
+        Join.rule { 
+          case elem(_ !? return_elem) => return_elem(Elem(x, next))
+        }
+        return_put() <&> last(next)
+    }
+
+    Join.rule {
+      case consume(_ !? return_get) <&> first(elem !? _) =>
+        val data = elem()
+        println("inside rule body (exchanging value " + data.x + ")")
+        return_get(data.x) <&> first(data.next)
+    }
+
+    run {
+      val elem = new (Unit ==> Elem)
+      first(elem) <&> last(elem)
+    }
+  }
+
+
+
+  def testCode(p: ProduceConsume[String]): Unit = run {
 
     println("starting up...")
 
     val res = {
-      produce("item 1")
-      produce("item 2")
-      produce("item 3")
-      produce("item 4")
+      p.produce("item 1")
+      p.produce("item 2")
+      p.produce("item 3")
+      p.produce("item 4")
       "done producing"
     } <&> {
-      println("received: " + consume())
-      println("received: " + consume())
-      println("received: " + consume())
-      println("received: " + consume())
+      println("received: " + p.consume())
+      println("received: " + p.consume())
+      println("received: " + p.consume())
+      println("received: " + p.consume())
       "done consuming"
     }
 
@@ -165,7 +235,24 @@ object Test8 {
 
   def main(args: Array[String]) {
 
-    run(testCode())
+    println("=== synchronous")
+
+    testCode(new SynchProduceConsume())
+
+    println()
+    println("=== asynchronous 1")
+    
+    testCode(new Asynch1ProduceConsume())
+
+    println()
+    println("=== asynchronous 2")
+    
+    testCode(new Asynch2ProduceConsume())
+
+    println()
+    println("=== asynchronous 3")
+    
+    testCode(new Asynch3ProduceConsume())
     
     /*
       expect output:

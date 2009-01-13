@@ -35,8 +35,8 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
     override def transform(tree: Tree): Tree = {
       tree match {
 
-        // TODO: Maybe we should generalize the transform and move it over to
-        // the regular Transformer facility. But then, actual and required cps
+        // TODO: Maybe we should further generalize the transform and move it over 
+        // to the regular Transformer facility. But then, actual and required cps
         // state would need more complicated (stateful!) tracking. 
         
         // Making the default case use transExpr(tree, None, None) instead of
@@ -84,6 +84,10 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
         case TypeTree() =>
           // circumvent cpsAllowed here
           super.transform(tree)
+        
+        case Apply(_,_) =>
+          // FIXME: hack to have reset {} in object constructors
+          transExpr(tree, None, None)
         
         case _ => 
           
@@ -311,6 +315,8 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
         // TODO: what about DefDefs?
         // TODO: relation to top-level val def?
+
+        // FIXME:: problem if lhs is not a plain symbol (like val Elem(x,y) = ...)
 
         case tree @ ValDef(mods, name, tpt, rhs) =>
           val (stms, anfRhs, spc) = atOwner(tree.symbol) { transValue(rhs, cpsA, None) }
