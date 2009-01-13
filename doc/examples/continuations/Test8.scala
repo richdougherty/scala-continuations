@@ -136,6 +136,8 @@ object Test8 {
     val consume = new (Unit ==> A)
   }
 
+  // synchronous produce/consume without buffering
+
   class SynchProduceConsume[A] extends ProduceConsume[A] {
     Join.rule {
       case produce(x !? return_put) <&> consume(_ !? return_get) => 
@@ -144,6 +146,33 @@ object Test8 {
     }
   }
 
+
+  // asynchronous produce/consume with one-place buffer
+  
+  class Asynch0ProduceConsume[A] extends ProduceConsume[A] {
+    
+    val empty = new (Unit ==> Unit)
+    val item = new (A ==> Unit)
+    
+    Join.rule {
+      case produce(x !? return_put) & empty(_ !? _) => 
+        return_put() <&> item(x)
+    }
+
+    Join.rule {
+      case consume(_ !? return_get) <&> item(x !? _) => 
+        println("inside rule body (exchanging value " + x + ")")
+        return_get(x) <&> empty()
+    }
+
+    run {
+      empty()
+    }
+  }
+
+
+  // asynchronous produce/consume (unlimited buffer)
+  // without stable ordering of items
 
   class Asynch1ProduceConsume[A] extends ProduceConsume[A] {
     
@@ -160,6 +189,9 @@ object Test8 {
         return_get(x)
     }
   }
+
+  // asynchronous produce/consume with stable ordering of items,
+  // produce and consume are mutually exclusive
 
   class Asynch2ProduceConsume[A] extends ProduceConsume[A] {
     
@@ -180,6 +212,11 @@ object Test8 {
       item(Nil)
     }
   }
+
+
+  // asynchronous produce/consume, stable ordering, concurrent
+  // produce and consume (using dynamic joins, i.e. rule creation
+  // independent of channel creation)
 
   class Asynch3ProduceConsume[A] extends ProduceConsume[A] {
     
@@ -212,6 +249,9 @@ object Test8 {
 
 
 
+
+  // test setup, independent of actual implementation
+  
   def testCode(p: ProduceConsume[String]): Unit = run {
 
     println("starting up...")
@@ -233,12 +273,18 @@ object Test8 {
     println("=> result: " + res)
   }
 
+
   def main(args: Array[String]) {
 
     println("=== synchronous")
 
     testCode(new SynchProduceConsume())
 
+    println()
+    println("=== asynchronous 0")
+    
+    testCode(new Asynch0ProduceConsume())
+    
     println()
     println("=== asynchronous 1")
     

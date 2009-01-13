@@ -28,17 +28,17 @@ object Test9 {
   def main(args: Array[String]) = {
 
     println("reflecting lists: " + reset {
-      List((List("x","y","z").reflect[Any], List(4,5,6).reflect[Any]))
+      
+      val left = List("x","y","z")
+      val right = List(4,5,6)
+      
+      List(left.reflect[Any] -> right.reflect[Any])
     })
   
     println("reflecting options: " +  reset {
       
       def mightFail() = None.reflect[Any] // long computation here ...
       
-      type comp[A] = A @cps[Option[A], Option[A]]
-      
-//      def tryCatch[A](a: =>comp[A], b: =>comp[A]): comp[A] = { // doesn't work ?!?
-        
       def tryCatch[A](a: =>(A @cps[Option[A], Option[A]]))(
         b: =>(A @cps[Option[A], Option[A]])): 
             (A @cps[Option[A], Option[A]]) = {
