@@ -110,7 +110,8 @@ abstract class CPSAnnotationChecker extends CPSUtils {
 
     def transChildrenInOrder(tree: Tree, tpe: Type, childTrees: List[Tree]) = {
       // FIXME: npe
-      val children = childTrees.flatMap((t:Tree) => filterAttribs(t.tpe, MarkerCPSTypes))
+      val children = childTrees.flatMap((t:Tree) =>
+        if (t.tpe eq null) Nil else filterAttribs(t.tpe, MarkerCPSTypes))
                             
       val newtpe = updateAttributes(tpe, linearize(children))
     
@@ -156,7 +157,7 @@ abstract class CPSAnnotationChecker extends CPSUtils {
 
           vprintln("[checker] checking select " + tree + "/" + tpe)
 
-          // FIXME: but it back in?? (problem with test cases select.scala and Test2.scala)
+          // FIXME: put it back in?? (problem with test cases select.scala and Test2.scala)
           // transChildrenInOrder(tree, tpe, List(qual))
           tpe
 

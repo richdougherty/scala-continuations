@@ -213,7 +213,7 @@
   <target name="pack.library" depends="build.library">
     <mkdir dir="build/pack"/>
     <jar destfile="build/pack/${plugin.name}-library.jar">
-      <fileset dir="build/build.plugin"/>
+      <fileset dir="build/build.library"/>
       <fileset file="plugin.properties"/>
     </jar>
   </target>

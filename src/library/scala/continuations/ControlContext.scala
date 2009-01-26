@@ -19,6 +19,8 @@ final class ControlContext[+A,-B,+C](val fun: (A => B) => C) {
     new ControlContext((k:(A1 => B1)) => fun((x:A) => f(x).fun(k)))
   }
 
+  // TODO: filter
+
 }
 
 
@@ -30,7 +32,7 @@ private class uncps extends Annotation
 
 
 
-
+import scala.concurrent.AbstractTaskRunner
 
 object ControlContext {
 
@@ -75,5 +77,8 @@ object ControlContext {
     reify[Any,Unit,A](ctx).fun((x:Any) => ())
   }
 
+  def spawn(ctx: =>(Any @cps[Unit,Any]))(implicit sched: AbstractTaskRunner): Unit = {
+    sched.submitTask(() => run(ctx))
+  }
   
 }

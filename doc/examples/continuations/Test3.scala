@@ -8,6 +8,8 @@ import scala.continuations.ControlContext._
 import scala.collection.mutable._
 
 
+// more or less superseded by Test8 ...
+
 
 case class Definator(rule: Rule);
 
