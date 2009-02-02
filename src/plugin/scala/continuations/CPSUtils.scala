@@ -37,7 +37,7 @@ trait CPSUtils {
       case _ => false
     }
       
-    tpe.attributes.filter(byClass(cls)) // FIXME: prevent NPE!!
+    tpe.attributes.filter(byClass(cls))
   }
 
   def linearize(ann: List[AnnotationInfo]): List[AnnotationInfo] = {

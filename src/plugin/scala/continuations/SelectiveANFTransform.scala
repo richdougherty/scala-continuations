@@ -30,7 +30,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
   class ANFTransformer(unit: CompilationUnit) extends TypingTransformer(unit) {
 
-    var cpsAllowed: Boolean = false // detect cps code in places we do not handle yet
+    var cpsAllowed: Boolean = false // detect cps code in places we do not handle (yet)
 
     override def transform(tree: Tree): Tree = {
       tree match {
@@ -86,7 +86,8 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
           super.transform(tree)
         
         case Apply(_,_) =>
-          // FIXME: hack to have reset {} in object constructors
+          // this allows reset { ... } in object constructors
+          // it's kind of a hack to put it here (see note above)
           transExpr(tree, None, None)
         
         case _ => 
@@ -143,7 +144,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
           
           val tree1 = copy.Block(tree, a, b) // no updateSynthFlag here!!!
 
-          (Nil, tree1, cpsA) //cpsR)
+          (Nil, tree1, cpsA)
 
         case If(cond, thenp, elsep) =>
           
@@ -153,7 +154,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
           val thenVal = transExpr(thenp, cpsA2, cpsR2)
           val elseVal = transExpr(elsep, cpsA2, cpsR2)
           
-          // TODO: check that then and else parts agree
+          // TODO: check that then and else parts agree (necessary??)
           
           if (cpsR.isDefined) {
             if (elsep == EmptyTree)
@@ -217,7 +218,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
           (stms, updateSynthFlag(copy.Throw(tree, expr)), spc)
 
         case Typed(expr0, tpt) =>
-          // TODO: treat x: A @cps[B,C] specially?
+          // TODO: should x: A @cps[B,C] have a special meaning?
           val (stms, expr, spc) = transInlineValue(expr0, cpsA)
           (stms, updateSynthFlag(copy.Typed(tree, expr, tpt)), spc)
 
@@ -298,6 +299,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
                       .setInfo(valueTpe)
                       .setFlag(Flags.SYNTHETIC)
                       .setAttributes(List(AnnotationInfo(MarkerCPS.tpe, Nil, Nil)))        
+                      // TODO: don't overwrite other attribs
 
           (stms ::: List(ValDef(sym, expr) setType(NoType)),
              Ident(sym) setType(valueTpe) setPos(tree.pos), linearize(spc, spcVal))
@@ -329,7 +331,8 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
           
           val spcVal = getAnswerTypeAnn(anfRhs.tpe)
           if (spcVal.isDefined) {
-              tree.symbol.setAttributes(List(AnnotationInfo(MarkerCPS.tpe, Nil, Nil))) // TODO: don't remove others!
+              tree.symbol.setAttributes(List(AnnotationInfo(MarkerCPS.tpe, Nil, Nil)))
+              // TODO: don't remove other annotations!
           }
           
           (stms:::List(copy.ValDef(tree, mods, name, tpt, anfRhs)), linearize(spc, spcVal))

@@ -26,9 +26,9 @@ final class ControlContext[+A,-B,+C](val fun: (A => B) => C) {
 
 
 
-private class cpsv[-B] extends Annotation
+private class cpsv[-B] extends Annotation // implementation detail
 
-private class uncps extends Annotation
+private class uncps extends Annotation // implementation detail
 
 
 
@@ -39,22 +39,37 @@ object ControlContext {
   type suspendable = cps[Unit,Unit]
   
 
+  def shift[A,B,C](fun: (A => B) => C): A @cps[B,C] = {
+    throw new NoSuchMethodException("this code has to be compiled with the scala CPS plugin")
+  }
+
+  def reset[A,C](ctx: =>(A @cps[A,C])): C = {
+    reify[A,A,C](ctx).fun((x:A) => x)
+  }
+
+  def run[A](ctx: =>(Any @cps[Unit,A])): A = {
+    reify[Any,Unit,A](ctx).fun((x:Any) => ())
+  }
+
+  def spawn(ctx: =>(Any @cps[Unit,Any]))(implicit sched: AbstractTaskRunner): Unit = {
+    sched.submitTask(() => run(ctx))
+  }
+
+  
+  // methods below are mostly implementation details and are not
+  // needed frequently in client code
+
   def shiftUnit0[A,B](x: A): A @cps[B,B] = {
     shiftUnit[A,B,B](x)
   }
 
   def shiftUnit[A,B,C>:B](x: A): A @cps[B,C] = {
-    throw new Exception("cps!")
-  }
-
-  def shift[A,B,C](fun: (A => B) => C): A @cps[B,C] = {
-    throw new Exception("cps!")
+    throw new NoSuchMethodException("this code has to be compiled with the scala CPS plugin")
   }
 
   def reify[A,B,C](ctx: =>(A @cps[B,C])): ControlContext[A,B,C] = {
-    throw new Exception("cps!")
-  }
-  
+    throw new NoSuchMethodException("this code has to be compiled with the scala CPS plugin")
+  }  
 
   def shiftUnitR[A,B](x: A): ControlContext[A,B,B] = {
     shiftR((k:A=>B) => k(x))
@@ -68,17 +83,4 @@ object ControlContext {
     ctx
   }
 
-
-  def reset[A,C](ctx: =>(A @cps[A,C])): C = {
-    reify[A,A,C](ctx).fun((x:A) => x)
-  }
-
-  def run[A](ctx: =>(Any @cps[Unit,A])): A = {
-    reify[Any,Unit,A](ctx).fun((x:Any) => ())
-  }
-
-  def spawn(ctx: =>(Any @cps[Unit,Any]))(implicit sched: AbstractTaskRunner): Unit = {
-    sched.submitTask(() => run(ctx))
-  }
-  
 }

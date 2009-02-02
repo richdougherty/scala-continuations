@@ -74,6 +74,8 @@ abstract class SelectiveCPSTransform extends PluginComponent with
     def mainTransform(tree: Tree): Tree = {
       tree match {
 
+        // TODO: can we generalize this?
+        
         case Apply(TypeApply(fun, targs), args)
         if (fun.symbol == MethShift) =>
           log("found shift: " + tree)
@@ -186,7 +188,7 @@ abstract class SelectiveCPSTransform extends PluginComponent with
               
               var methodName = "map"
               
-              // FIXME: better reporting of type errors?
+              // TODO: better type errors?
               
               if (body.tpe != null) {
                 if (body.tpe.typeSymbol.tpe <:< Context.tpe)
