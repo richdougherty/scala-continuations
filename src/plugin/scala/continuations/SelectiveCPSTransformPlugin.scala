@@ -17,12 +17,12 @@ class SelectiveCPSTransformPlugin(val global: Global) extends Plugin {
 
     new SelectiveANFTransform() { 
       val global = SelectiveCPSTransformPlugin.this.global
-      val runsAfter = "pickler" 
+      val runsAfter = List("pickler")
     },
 
     new SelectiveCPSTransform() { 
       val global = SelectiveCPSTransformPlugin.this.global
-      val runsAfter = "selectiveanf"
+      val runsAfter = List("selectiveanf")
     }
 
   )
