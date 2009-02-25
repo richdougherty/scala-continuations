@@ -77,10 +77,10 @@ abstract class SelectiveCPSTransform extends PluginComponent with
         // TODO: can we generalize this?
         
         case Apply(TypeApply(fun, targs), args)
-        if (fun.symbol == MethShift) =>
+        if (fun.symbol == MethShift2) =>
           log("found shift: " + tree)
           atPos(tree.pos) {
-            val funR = gen.mkAttributedRef(MethShiftR) // TODO: correct?
+            val funR = gen.mkAttributedRef(MethShift2R) // TODO: correct?
             log(funR.tpe)
             Apply(
                 TypeApply(funR, targs).setType(appliedType(funR.tpe, targs.map((t:Tree) => t.tpe))),

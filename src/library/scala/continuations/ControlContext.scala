@@ -9,14 +9,14 @@ package scala.continuations
 class cps[-B,+C] extends TypeConstraint
 
 
-final class ControlContext[+A,-B,+C](val fun: (A => B) => C) {
+final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
   
   final def map[A1](f: (A => A1)): ControlContext[A1,B,C] = {
-    new ControlContext((k:(A1 => B)) => fun((x:A) => k(f(x))))
+    new ControlContext((ret1: A1 => B, thr1: Throwable => B) => fun(f andThen ret1, thr1))
   }
   
   final def flatMap[A1,B1<:B](f: (A => ControlContext[A1,B1,B])): ControlContext[A1,B1,C] = {
-    new ControlContext((k:(A1 => B1)) => fun((x:A) => f(x).fun(k)))
+    new ControlContext((ret1: A1 => B1, thr1: Throwable => B1) => fun(((x:A) => f(x).fun(ret1, thr1)), thr1))
   }
 
   // TODO: filter
@@ -40,15 +40,23 @@ object ControlContext {
   
 
   def shift[A,B,C](fun: (A => B) => C): A @cps[B,C] = {
+    shift2((ret: A => B, thr: Throwable => B) => fun(ret))
+  }
+
+  def shift2[A,B,C](fun: (A => B, Throwable => B) => C): A @cps[B,C] = {
     throw new NoSuchMethodException("this code has to be compiled with the scala CPS plugin")
   }
 
   def reset[A,C](ctx: =>(A @cps[A,C])): C = {
-    reify[A,A,C](ctx).fun((x:A) => x)
+    val ret = { x: A => x }
+    val thr = { t: Throwable => throw t }
+    reify[A,A,C](ctx).fun(ret, thr)
   }
 
   def run[A](ctx: =>(Any @cps[Unit,A])): A = {
-    reify[Any,Unit,A](ctx).fun((x:Any) => ())
+    val ret = { x: Any => () }
+    val thr = { t: Throwable => throw t }
+    reify[Any,Unit,A](ctx).fun(ret, thr)
   }
 
   def spawn(ctx: =>(Any @cps[Unit,Any]))(implicit sched: AbstractTaskRunner): Unit = {
@@ -76,6 +84,10 @@ object ControlContext {
   }
 
   def shiftR[A,B,C](fun: (A => B) => C): ControlContext[A,B,C] = {
+    new ControlContext((ret: A => B, thr: Throwable => B) => fun(ret))
+  }
+
+  def shift2R[A,B,C](fun: (A => B, Throwable => B) => C): ControlContext[A,B,C] = {
     new ControlContext(fun)
   }
 
