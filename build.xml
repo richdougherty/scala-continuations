@@ -84,6 +84,8 @@
     <scalac srcdir="src/library"
             destdir="build/build.library"
             includes="**/*.scala"
+            unchecked="yes"
+            deprecation="yes"
             addparams="-Xplugin:build/pack/${plugin.name}-plugin.jar">
       <classpath>
         <pathelement location="${scala.home}/lib/scala-library.jar"/>
