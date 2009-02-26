@@ -1,0 +1,24 @@
+---
+Returned: no shift
+---
+Threw: no shift (auto)
+---
+Returned: shift unit
+---
+Returned: after shift
+---
+Returned: inside shift
+---
+Threw: before shift (auto)
+---
+Threw: inside shift, before ret (explicit)
+Returned: after shift
+---
+Threw: inside shift (explicit)
+---
+Returned: after shift
+Threw: inside shift, after ret (explicit)
+---
+Threw: after shift, immediately (auto)
+---
+Threw: after shift, later (auto)
