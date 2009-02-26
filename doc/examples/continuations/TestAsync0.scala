@@ -26,7 +26,7 @@ object TestAsync0 {
       def lockUnlock = {
         lock.lock
         println(id + ": got lock")
-        Thread.sleep(100)
+        Thread.sleep(300)
         lock.unlock
       }
 
@@ -40,12 +40,11 @@ object TestAsync0 {
     }
 
     testLock("1")
-    Thread.sleep(50)
+    Thread.sleep(100)
     testLock("2")
-    Thread.sleep(50)
+    Thread.sleep(100)
     testLock("3")
 
-    Thread.sleep(50)
     finished.acquire
     finished.acquire
     finished.acquire
