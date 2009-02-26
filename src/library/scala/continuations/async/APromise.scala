@@ -7,7 +7,7 @@ import scala.continuations.ControlContext._
 /**
  * An asynchronous promise.
  */
-trait APromise[A] extends AFuture[A] {
+class APromise[A] extends AFuture[A] {
 
   private sealed trait State
   private case class Unset(pending: Queue[Suspendable[A]]) extends State
@@ -15,7 +15,7 @@ trait APromise[A] extends AFuture[A] {
   
   private var state: State = Unset(Queue.Empty)
 
-  def apply = {
+  def apply: A @cps[Unit,Nothing] = {
     ActorSuspender.shiftSuspendable { (suspendable: Suspendable[A]) =>
       synchronized {
         state match {
@@ -34,7 +34,11 @@ trait APromise[A] extends AFuture[A] {
     }
   }
 
-  def set(result: Either[Throwable,A]): Unit = synchronized {
+  def set(x: A): Unit = setWithEither(Right(x))
+
+  def setWithError(t: Throwable): Unit = setWithEither(Left(t))
+
+  def setWithEither(result: Either[Throwable,A]): Unit = synchronized {
     state match {
       case Unset(pending) => {
         state = Set(result)
