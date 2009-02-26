@@ -55,11 +55,11 @@ trait Suspendable[A] {
   def resume(x: A): Unit
 
   /**
-   * Resume a computation that has been suspended, providing an
-   * exception. The computation should be run in another thread, so
-   * that calling resume is a lightweight operation.
+   * Resume a computation that has been suspended, providing a reified
+   * result. The computation should be run in another thread, so that
+   * calling resume is a lightweight operation.
    */
-  def resumeWithError(t: Throwable): Unit
+  def resumeWithResult(result: Either[Throwable,A]): Unit
 
   /**
    * Transfer the Suspendable to another thread and execute it there.
@@ -68,7 +68,7 @@ trait Suspendable[A] {
    */
   def transfer(x: A): Nothing
 
-  def transferWithError(t: Throwable): Nothing
+  def transferWithResult(result: Either[Throwable,A]): Nothing
 
 }
 

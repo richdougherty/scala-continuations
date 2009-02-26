@@ -23,30 +23,22 @@ class APromise[A] extends AFuture[A] {
             state = Unset(pending.enqueue(suspendable))
             suspendable.suspend
           }
-          case Set(Right(x)) => {
-            suspendable.transfer(x.asInstanceOf[A]) // Work around type erasure
-          }
-          case Set(Left(t)) => {
-            suspendable.transferWithError(t)
+          case Set(result) => {
+            suspendable.transferWithResult(result)
           }
         }
       }
     }
   }
 
-  def set(x: A): Unit = setWithEither(Right(x))
+  def set(x: A): Unit = setResult(Right(x))
 
-  def setWithError(t: Throwable): Unit = setWithEither(Left(t))
-
-  def setWithEither(result: Either[Throwable,A]): Unit = synchronized {
+  def setResult(result: Either[Throwable,A]): Unit = synchronized {
     state match {
       case Unset(pending) => {
         state = Set(result)
         for (suspendable <- pending) {
-          result match {
-            case Right(x) => suspendable.resume(x.asInstanceOf[A]) // Work around type erasure
-            case Left(t) => suspendable.resumeWithError(t)
-          }
+          suspendable.resumeWithResult(result)
         }
       }
       case s => throw new IllegalStateException(s.toString)
@@ -63,8 +55,7 @@ class APromise[A] extends AFuture[A] {
   def immediate: Option[A] = synchronized {
     state match {
       case Unset(_) => None
-      case Set(Right(x)) => Some(x.asInstanceOf[A]) // Work around type erasure
-      case Set(Left(t)) => throw t
+      case Set(result) => Some(Result.invokeResult(result))
     }
   }
 }

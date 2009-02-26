@@ -2,6 +2,7 @@ package scala.continuations.async
 
 import scala.actors._
 import scala.continuations.ControlContext._
+import scala.continuations.Result._
 
 /**
  * An object that suspends and resumes computations using reactions.
@@ -19,7 +20,7 @@ object ActorSuspender extends Suspender {
 
     private def reactOn(ch: Channel[Either[Throwable,A]]) = {
       ch.react {
-        case Right(x: Any) => eval(ret, thr) { x.asInstanceOf[A] } // Workaround for type erasure
+        case Right(x: Any) => send(ret, thr) { x.asInstanceOf[A] } // Workaround for type erasure
         case Left(t) => thr(t)
       }
     }
@@ -45,11 +46,11 @@ object ActorSuspender extends Suspender {
       }
     }
 
-    def resumeWithError(t: Throwable): Unit = synchronized {
+    def resumeWithResult(result: Either[Throwable,A]): Unit = synchronized {
       state match {
         case Suspended(ch) => {
           state = Resumed
-          ch ! Left(t)
+          ch ! result
         }
         case illegal => throw new IllegalStateException(illegal.toString)
       }
@@ -67,12 +68,12 @@ object ActorSuspender extends Suspender {
       }
     }
 
-    def transferWithError(t: Throwable): Nothing = synchronized {
+    def transferWithResult(result: Either[Throwable,A]): Nothing = synchronized {
       state match {
-        case Suspended(ch) => {
+        case Initial => {
           state = Resumed
           val ch = new Channel[Either[Throwable,A]] /* Actor.self */
-          ch ! Left(t)
+          ch ! result
           reactOn(ch)
         }
         case illegal => throw new IllegalStateException(illegal.toString)

@@ -11,7 +11,7 @@ object TestException0 {
     println("---")
     val ret = { x: Any => println("Returned: " + x) }
     val thr = { t: Throwable => println("Threw: " + t.getMessage) }
-    into[Any,Unit](ret,thr) { ctx }
+    relay[Any,Unit](ret,thr) { ctx }
   }
 
   def main(args: Array[String]): Any = {

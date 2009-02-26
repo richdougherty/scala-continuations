@@ -23,6 +23,7 @@ object TestAsync1 {
 
     val p = new APromise[String]
     
+    println("starting getter")
     Actor.actor {
       reset {
         assert(!p.isSet)
@@ -33,6 +34,7 @@ object TestAsync1 {
       }
     }
 
+    println("starting setter")
     Actor.actor {
       reset {
         assert(!p.isSet)
