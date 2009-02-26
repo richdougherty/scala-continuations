@@ -18,7 +18,9 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
       fun(ret, thr)
     }
     new ControlContext(fun1)
-  } 
+  }
+
+  // linear execution
  
   final def map[A1](f: (A => A1)): ControlContext[A1,B,C] = {
     extend { (ret1: A1 => B, thr1: Throwable => B) =>
@@ -35,6 +37,71 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
   }
 
   // TODO: filter
+
+  // catch
+  
+  final def cat[A1>:A](pf: PartialFunction[Throwable, A1]): ControlContext[A1,B,C] = {
+    // Create new THROW continuation; leave return continuation unchanged.
+    extend { (ret1: A1 => B, thr1: Throwable => B) =>
+      val thr = { t: Throwable =>
+        if (pf.isDefinedAt(t)) {
+          send[A1,B](ret1, thr1) { pf(t) }
+        } else {
+          thr1(t)
+        }
+      }
+      (ret1, thr)
+    }
+  }
+
+  final def flatCat[A1>:A,B1<:B](pf: PartialFunction[Throwable, ControlContext[A1,B1,B]]): ControlContext[A1,B1,C] = {
+    // Create new THROW continuation; leave return continuation unchanged.
+    extend { (ret1: A1 => B1, thr1: Throwable => B1) =>
+      val thr = { t: Throwable =>
+        if (pf.isDefinedAt(t)) {
+          flatSend[A1,B1,B](ret1, thr1) { pf(t) }
+        } else {
+          thr1(t)
+        }
+      }
+      (ret1, thr)
+    }
+  }
+
+  // finally
+
+  final def fin(f: Unit => Unit): ControlContext[A,B,C] = {
+    extend { (ret1: A => B, thr1: Throwable => B) => 
+      val ret = { a: A =>
+        // Save return value, evaluate f, continue with return value unless exception.
+        val savedRet = { _: Unit => ret1(a) }
+        send[Unit,B](savedRet, thr1) { f(()) }
+      }
+      val thr = { t: Throwable =>
+        // Save thrown exception, evaluate f, continue by re-throwing exception unless another exception.
+        val savedThr = { _: Unit => thr1(t) }
+        send[Unit,B](savedThr, thr1) { f(()) }
+      }
+      (ret, thr)
+    }
+  }
+
+  // XXX: Is type of f correct?
+  final def flatFin[B1<:B](f: Unit => ControlContext[Unit,B1,B1]): ControlContext[A,B1,C] = {
+    extend { (ret1: A => B1, thr1: Throwable => B1) => 
+      val ret = { a: A =>
+        // Save return value, evaluate f, continue with return value unless exception.
+        val savedRet = { _: Unit => ret1(a) }
+        flatSend[Unit,B1,B1](savedRet, thr1) { f(()) }
+      }
+      val thr = { t: Throwable =>
+        // Save thrown exception, evaluate f, continue by re-throwing exception unless another exception.
+        val savedThr = { _: Unit => thr1(t) }
+        flatSend[Unit,B1,B1](savedThr, thr1) { f(()) }
+      }
+      (ret, thr)
+    }
+  }
 
 }
 
