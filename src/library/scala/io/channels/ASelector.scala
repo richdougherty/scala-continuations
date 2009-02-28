@@ -21,6 +21,8 @@ object ASelector {
  * are ready.
  *
  * @param selector The <code>Selector</code> to wrap.
+ *
+ * @author <a href="http://www.richdougherty.com/">Rich Dougherty</a>
  */
 class ASelector(val selector: Selector) {
   import ASelector._

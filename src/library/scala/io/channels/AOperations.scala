@@ -7,6 +7,8 @@ import scala.continuations.ControlContext._
 
 /**
  * Low-level access to non-blocking operations on channels.
+ *
+ * @author <a href="http://www.richdougherty.com/">Rich Dougherty</a>
  */
 object AOperations {
 
