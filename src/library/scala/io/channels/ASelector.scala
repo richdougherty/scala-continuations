@@ -1,6 +1,7 @@
-package scala.actors.io
+package scala.io.channels
 
 import java.nio.channels._
+import scala.actors.Actor
 import scala.continuations._
 import scala.continuations.async.{ActorSuspender,Suspendable}
 import scala.continuations.ControlContext._

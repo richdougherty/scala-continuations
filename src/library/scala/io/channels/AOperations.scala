@@ -1,4 +1,4 @@
-package scala.actors.io
+package scala.io.channels
 
 import java.nio.ByteBuffer
 import java.nio.channels._
