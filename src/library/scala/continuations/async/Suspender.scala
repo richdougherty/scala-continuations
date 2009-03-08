@@ -37,8 +37,11 @@ trait Suspender {
 }
 
 /**
- * A computation which can be suspended and executed. This can only be
- * done once.
+ * A computation which can be suspended and resumed. Calls to suspend
+ * and resume can occur in any order, but must always be balanced. For
+ * example, the following is a valid sequence of calls:
+ * suspend/resume, resume/suspend, resume/suspend. The following are
+ * invalid: suspend/suspend and resume/resume.
  */
 trait Suspendable[A] {
 
@@ -52,7 +55,7 @@ trait Suspendable[A] {
    * value. The computation should be run in another thread, so that
    * calling resume is a lightweight operation.
    */
-  def resume(x: A): Unit
+  def resume(x: A): Unit = resumeWithResult(Right(x))
 
   /**
    * Resume a computation that has been suspended, providing a reified
@@ -62,12 +65,13 @@ trait Suspendable[A] {
   def resumeWithResult(result: Either[Throwable,A]): Unit
 
   /**
-   * Transfer the Suspendable to another thread and execute it there.
-   * Analagous to calling suspend then resume, but manages ordering of
-   * the operations without the need for synchronization.
+   * @deprecated Call resume then suspend instead.
    */
-  def transfer(x: A): Nothing
+  def transfer(x: A): Nothing = transferWithResult(Right(x))
 
+  /**
+   * @deprecated Call resumeWithResult then suspend instead.
+   */
   def transferWithResult(result: Either[Throwable,A]): Nothing
 
 }
