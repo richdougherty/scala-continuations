@@ -14,6 +14,13 @@ import scala.io.channels._
 object Test16 {
 
   def main(args: Array[String]) {
+    for (i <- 0 until 100) { openClose(i.toString) }
+  }
+
+  def openClose(id: String) = {
+    def log(msg: String) = () //println(id + ": " + msg)
+
+    log("Starting")
 
     val selector = new ASelector
 
@@ -46,10 +53,10 @@ object Test16 {
     }
 
     val finished = new Semaphore(0, true)
-    //val wait = new Semaphore(0, true)
 
     val address = new InetSocketAddress("localhost", 12345)
 
+    log("Server binding")
     val ssc = ServerSocketChannel.open
     ssc.configureBlocking(false)
     val ss = ssc.socket
@@ -58,41 +65,42 @@ object Test16 {
 
     Actor.actor {
       reset {
+        log("Server actor starting")
+        log("Server accepting")
         val sc1 = AOperations.accept(selector, ssc)
         sc1.configureBlocking(false)
         val message1 = "helloworld".getBytes.toList
         println("Sending: " + message1)
         writeAll(sc1, message1)
-        //wait.acquire
-        //val message2 = "goodbye".getBytes.toList
-        //println("Sending: " + message2)
-        //writeAll(sc1, message2)
         sc1.close
         ssc.close
+        log("Server finished")
         finished.release
       }
     }
-
-    Thread.sleep(100)
 
     Actor.actor {
       reset {
+        log("Client actor starting")
         val sc2: SocketChannel = SocketChannel.open
         sc2.configureBlocking(false)
+        log("Client connecting")
         sc2.connect(address)
+        log("Client finishing connection")
         AOperations.finishConnect(selector, sc2)
+        log("Client reading")
         val message1 = readAll(sc2)
         println("Received: " + message1)
-        //wait.release
-        //val message2 = readAll(sc2)
-        //println("Received: " + message2)
         sc2.close
+        log("Client finished")
         finished.release
       }
     }
 
     finished.acquire
     finished.acquire
+
+    log("Finished")
   }
   
 }
