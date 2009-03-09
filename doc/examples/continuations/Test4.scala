@@ -45,8 +45,10 @@ object Test4 {
     val ping = new Mailbox[String]("ping")
     val pong = new Mailbox[String]("pong")
 
-    val max = 1*1000*1000
+    val max = Integer.parseInt(System.getProperty("size", "1000000"))
     val step = max/10
+    
+    println("max: " + max)
     
     def pingActor(i: Int):Any @cps[Any,Any] = {
       pong.put("ping")

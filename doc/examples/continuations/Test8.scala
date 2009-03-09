@@ -6,13 +6,14 @@ import scala.continuations._
 import scala.continuations.ControlContext._
 
 import scala.concurrent._
+import scala.concurrent.cpsops._
 
 
 trait ProducersConsumers extends JoinPatterns { self: TaskRunners =>
 
   abstract class ProduceConsume[A] {
-    val produce = new (A ==> Unit)("produce")
-    val consume = new (Unit ==> A)("consume")
+    val produce = new (A ==> Unit)
+    val consume = new (Unit ==> A)
   }
 
   // synchronous produce/consume without buffering
@@ -20,7 +21,7 @@ trait ProducersConsumers extends JoinPatterns { self: TaskRunners =>
   class SynchProduceConsume[A] extends ProduceConsume[A] {
     join {
       case produce(x <== return_put) <&> consume(_ <== return_get) => 
-        println("inside rule body (exchanging value " + x + ")")
+        //dprintln("inside rule body (exchanging value " + x + ")")
         return_put() <&> return_get(x)
     }
   }
@@ -34,13 +35,13 @@ trait ProducersConsumers extends JoinPatterns { self: TaskRunners =>
     val item = new (A ==> Unit)
     
     join {
-      case produce(x <== return_put) & empty(_ <== _) => 
+      case produce(x <== return_put) <&> empty(_ <== _) => 
         return_put() <&> item(x)
     }
 
     join {
       case consume(_ <== return_get) <&> item(x <== _) => 
-        println("inside rule body (exchanging value " + x + ")")
+        //dprintln("inside rule body (exchanging value " + x + ")")
         return_get(x) <&> empty()
     }
 
@@ -64,7 +65,7 @@ trait ProducersConsumers extends JoinPatterns { self: TaskRunners =>
 
     join {
       case consume(_ <== return_get) <&> item(x <== _) => 
-        println("inside rule body (exchanging value " + x + ")")
+        dprintln("inside rule body (exchanging value " + x + ")")
         return_get(x)
     }
   }
@@ -77,13 +78,13 @@ trait ProducersConsumers extends JoinPatterns { self: TaskRunners =>
     val item = new (List[A] ==> Unit)
     
     join {
-      case produce(x <== return_put) & item(xs <== _)=> 
+      case produce(x <== return_put) <&> item(xs <== _)=> 
         return_put() <&> item(xs ::: List(x))
     }
 
     join {
       case consume(_ <== return_get) <&> item((x::xs) <== _) => 
-        println("inside rule body (exchanging value " + x + ")")
+        //dprintln("inside rule body (exchanging value " + x + ")")
         return_get(x) <&> item(xs)
     }
 
@@ -105,7 +106,7 @@ trait ProducersConsumers extends JoinPatterns { self: TaskRunners =>
     val first = new ((Unit ==> Elem) ==> Unit)
     
     join {
-      case produce(x <== return_put) & last(elem <== _) => 
+      case produce(x <== return_put) <&> last(elem <== _) => 
         val next = new (Unit ==> Elem)
         join { 
           case elem(_ <== return_elem) => return_elem(Elem(x, next))
@@ -116,7 +117,7 @@ trait ProducersConsumers extends JoinPatterns { self: TaskRunners =>
     join {
       case consume(_ <== return_get) <&> first(elem <== _) =>
         val data = elem()
-        println("inside rule body (exchanging value " + data.x + ")")
+        //dprintln("inside rule body (exchanging value " + data.x + ")")
         return_get(data.x) <&> first(data.next)
     }
 

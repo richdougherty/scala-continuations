@@ -44,8 +44,6 @@ private class docps extends Annotation // implementation detail
 
 
 
-import scala.concurrent.AbstractTaskRunner
-
 object ControlContext {
 
   type suspendable = cps[Unit,Unit]
@@ -61,10 +59,6 @@ object ControlContext {
 
   def run[A](ctx: =>(Any @cps[Unit,A])): A = {
     reify[Any,Unit,A](ctx).fun((x:Any) => ())
-  }
-
-  def spawn(ctx: =>(Any @cps[Unit,Any]))(implicit sched: AbstractTaskRunner): Unit = {
-    sched.submitTask(() => run(ctx))
   }
 
   

@@ -20,7 +20,7 @@ object Test6 {
 
   def main(args: Array[String]) {
 
-    val result = reset[Any,Any] { // should be [String,String]
+    val result = reset {
 
       var x = 7
       
@@ -28,12 +28,12 @@ object Test6 {
 	
         x = x - 1
 
-        shift((continue:Unit=>Any)=> {
+        shift { continue: (Unit=>Any) =>
           if (x != 2)
             continue()
           else
             "aborted"
-        })
+        }
 
         println(x)
       }
