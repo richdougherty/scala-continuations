@@ -21,14 +21,18 @@ final class ControlContext[+A,-B,+C](val fun: (A => B) => C) {
     }
   */
 
-    final def flatMap[A1,B1,C1<:B](f: (A => ControlContext[A1,B1,C1])): ControlContext[A1,B1,C] = {
-      new ControlContext({ k:(A1 => B1) =>
-        fun { (x:A) =>
-          val res: C1 = f(x).fun(k)
-          res
-        }
-      })
-    }
+  final def flatMap[A1,B1,C1<:B](f: (A => ControlContext[A1,B1,C1])): ControlContext[A1,B1,C] = {
+    new ControlContext({ k:(A1 => B1) =>
+      fun { (x:A) =>
+        val res: C1 = f(x).fun(k)
+        res
+      }
+    })
+  }
+
+  final def foreach(f: (A => B)) = {
+    fun(f)
+  }
 
   // TODO: filter (?)
 
