@@ -37,11 +37,14 @@ trait Suspender {
 }
 
 /**
- * A computation which can be suspended and resumed. Calls to suspend
- * and resume can occur in any order, but must always be balanced. For
- * example, the following is a valid sequence of calls:
- * suspend/resume, resume/suspend, resume/suspend. The following are
- * invalid: suspend/suspend and resume/resume.
+ * A computation which can be suspended and resumed. Suspending the
+ * computation will throw an exception to terminate the current
+ * thread.  Resuming it will restart the computation on another
+ * thread.
+ *
+ * It is possible to "resume" a Suspendable before suspending it. This
+ * will result in it automatically being resumed as soon as it is
+ * suspended.
  */
 trait Suspendable[A] {
 
