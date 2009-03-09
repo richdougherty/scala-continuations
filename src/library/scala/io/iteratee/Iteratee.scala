@@ -1,6 +1,8 @@
 package scala.io.iteratee
 
 import scala.collections.immutable.Binary
+import scala.continuations._
+import scala.continuations.ControlContext._
 
 sealed trait StreamEvent[+E]
 case class Chunk[+E](e: E) extends StreamEvent[E]
@@ -90,15 +92,18 @@ object Iteratee {
     IECont(step(chunking.empty, _: StreamEvent[E]))
   }
 
-  def stake[E,El,R](n: Int, iter: Iteratee[E,El,R])(implicit chunking: Chunking[E,El]): Iteratee[E,El,Iteratee[E,El,R]] = (n, iter) match {
+  def stake[E,El,R](n: Int, iter: Iteratee[E,El,R])(implicit chunking: Chunking[E,El]): Iteratee[E,El,Iteratee[E,El,R]] @suspendable = (n, iter) match {
     case (n, IEDone(_, _)) => {
       skipN[E,El](n) >> Iteratee.unit(iter)
     }
     case (0, iter) => Iteratee.unit(iter)
     case (n, IECont(k)) => {
-      def step(stream: StreamEvent[E]): Iteratee[E,El,Iteratee[E,El,R]] = stream match {
+      def step(stream: StreamEvent[E]): Iteratee[E,El,Iteratee[E,El,R]] @suspendable = stream match {
         case Chunk(chunking.empty) => IECont(step _)
-        case chunk @ Chunk(cs) if (chunking.length(cs) <= n) => stake(n - chunking.length(cs), k(chunk))
+        case chunk @ Chunk(cs) if (chunking.length(cs) <= n) => {
+          val iter2 = k(chunk)
+          stake(n - chunking.length(cs), iter2)
+        }
         case Chunk(cs) => chunking.splitAt(cs, n) match {
           case (s1, s2) => IEDone(k(Chunk(s1)), Chunk(s2))
         }
@@ -125,8 +130,8 @@ object Iteratee {
  */
 sealed trait Iteratee[E,El,+R] {
   import Iteratee._
-  def >>=[S](f: R => Iteratee[E,El,S])(implicit chunking: Chunking[E,El]): Iteratee[E,El,S]
-  def >>[S](f: => Iteratee[E,El,S])(implicit chunking: Chunking[E,El]): Iteratee[E,El,S] = >>=(r => f) // XXX: Correct definition?
+  def >>=[S](f: R => Iteratee[E,El,S])(implicit chunking: Chunking[E,El]): Iteratee[E,El,S] @suspendable
+  def >>[S](f: => Iteratee[E,El,S])(implicit chunking: Chunking[E,El]): Iteratee[E,El,S] @suspendable = >>=(r => f) // XXX: Correct definition?
   // This relationship due to Luc Duponcheel
   // http://lucdup.blogspot.com/2008/11/scala-monads-and-arrows.html
   //final def map[S](f: R => S): Iteratee[E,S] = >>=(r => unit(f(r)))
@@ -134,7 +139,7 @@ sealed trait Iteratee[E,El,+R] {
 }
 final case class IEDone[E,El,+R](r: R, unprocessed: StreamEvent[E]) extends Iteratee[E,El,R] {
   import Iteratee._
-  final def >>=[S](f: R => Iteratee[E,El,S])(implicit chunking: Chunking[E,El]): Iteratee[E,El,S] = {
+  final def >>=[S](f: R => Iteratee[E,El,S])(implicit chunking: Chunking[E,El]): Iteratee[E,El,S] @suspendable = {
     val rightIteratee = f(r)
     if (unprocessed == Chunk(chunking.empty)) {
       rightIteratee
@@ -146,9 +151,9 @@ final case class IEDone[E,El,+R](r: R, unprocessed: StreamEvent[E]) extends Iter
     }
   }
 }
-final case class IECont[E,El,+R](k: StreamEvent[E] => Iteratee[E,El,R]) extends Iteratee[E,El,R] {
+final case class IECont[E,El,+R](k: StreamEvent[E] => Iteratee[E,El,R] @suspendable) extends Iteratee[E,El,R] {
   import Iteratee._
-  final def >>=[S](f: R => Iteratee[E,El,S])(implicit chunking: Chunking[E,El]): Iteratee[E,El,S] = IECont[E,El,S](k(_: StreamEvent[E]) >>= (f))
+  final def >>=[S](f: R => Iteratee[E,El,S])(implicit chunking: Chunking[E,El]): Iteratee[E,El,S] @suspendable = IECont[E,El,S](k(_: StreamEvent[E]) >>= (f))
 }
 
 /*trait AsyncProcessor[+E,-R] {
