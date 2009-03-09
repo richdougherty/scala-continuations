@@ -9,6 +9,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.immutable.Map
 
 import scala.concurrent._
+import scala.concurrent.cpsops._
 
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.atomic.AtomicInteger
