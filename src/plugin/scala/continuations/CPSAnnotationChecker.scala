@@ -4,6 +4,9 @@ package scala.continuations
 
 import scala.tools.nsc.Global
 
+import scala.collection.mutable.{Map, HashMap}
+
+
 abstract class CPSAnnotationChecker extends CPSUtils {
   val global: Global
   import global._
@@ -45,7 +48,21 @@ abstract class CPSAnnotationChecker extends CPSUtils {
       if (phase.id <= currentRun.typerPhase.id)
         attribs2.forall(a2 => attribs1.exists(a1 => a1.atp <:< a2.atp))
       else
-*/        attribs1.forall(a1 => attribs2.forall(a2 => a1.atp <:< a2.atp))
+        attribs1.forall(a1 => attribs2.forall(a2 => a1.atp <:< a2.atp))
+*/
+
+
+      // TODO/FIXME: in principle, A should also not be a subtype of A @cps[..]
+      // consider (A => B) <:< (A => B @cps[..])
+
+      val synattribs1 = filterAttribs(tpe1,MarkerCPSAdapt)
+      
+      if (synattribs1.isEmpty)
+        attribs1.forall(a1 => attribs2.exists(a2 => a1.atp <:< a2.atp))
+      else
+        attribs1.forall(a1 => attribs2.forall(a2 => a1.atp <:< a2.atp))
+        
+//      attribs1.forall(a1 => attribs2.forall(a2 => a1.atp <:< a2.atp)) // <!-- working version
     }
 
 
@@ -73,6 +90,10 @@ abstract class CPSAnnotationChecker extends CPSUtils {
             } else
               tpe
           } else {
+            
+            //val adapt = MarkerCPSAdapt.tpe
+            //val extra = AnnotationInfo(adapt, Nil, Nil)::Nil
+            
             tpe.withoutAttributes.withAttributes(
               unify(tpe.attributes:::attribs))  // TODO: need to consider synth attribute?
           }
@@ -106,12 +127,26 @@ abstract class CPSAnnotationChecker extends CPSUtils {
       case Nil =>
         Nil
     }
+    
+    def single(xs: List[AnnotationInfo]) = xs match {
+      case List(x) => x
+      case _ =>
+        println("not a single annotation: " + xs)// FIXME: error message
+        xs(0)
+    }
 
 
     def transChildrenInOrder(tree: Tree, tpe: Type, childTrees: List[Tree]) = {
-      // FIXME: npe
       val children = childTrees.flatMap((t:Tree) =>
-        if (t.tpe eq null) Nil else filterAttribs(t.tpe, MarkerCPSTypes))
+        if (t.tpe eq null) Nil else {
+          val types = filterAttribs(t.tpe, MarkerCPSTypes)
+          if (types.isEmpty) {//FIXME: cleanup
+//            vprintln("looking whether tree was adapted " + t + " / " + adapted.get(t))
+//            adapted.get(t).toList
+            Nil
+          } else
+            List(single(types))
+        })
                             
       val newtpe = updateAttributes(tpe, linearize(children))
     
@@ -122,6 +157,31 @@ abstract class CPSAnnotationChecker extends CPSUtils {
     }
 
 
+    override def canAdaptAnnotations(tree: Tree, mode: Int, pt: Type): Boolean = {
+      vprintln("can adapt annotations? " + tree + " / " + tree.tpe + " / " + Integer.toHexString(mode) + " / " + pt)
+      if (!filterAttribs(tree.tpe, MarkerCPSTypes).isEmpty && tree.tpe.withoutAttributes <:< pt) {
+        vprintln("yes we can!!")
+        true
+      } else
+        false
+    }
+    
+    
+    override def adaptAnnotations(tree: Tree, mode: Int, pt: Type): Tree = {
+      
+      // FIXME: there seems to be a problem when mode == 1 (no poly) and
+      // there are wildcards inside an annotation (which we don't resolve yet)
+      // can we just instantiate things?
+      
+      vprintln("adapt annotations " + tree + " / " + tree.tpe + " / " + Integer.toHexString(mode) + " / " + pt)
+      val types = filterAttribs(tree.tpe, MarkerCPSTypes)
+      val synth = filterAttribs(tree.tpe, MarkerCPSSynth)
+      if (!types.isEmpty) {
+        val adapt = MarkerCPSAdapt.tpe
+        tree.setType(tree.tpe.withoutAttributes.withAttributes(AnnotationInfo(adapt, Nil, Nil)::synth:::types))
+      } else
+        tree
+    }
 
 
     /** Modify the type that has thus far been inferred

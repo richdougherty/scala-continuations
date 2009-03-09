@@ -16,6 +16,7 @@ trait CPSUtils {
   lazy val MarkerCPS = definitions.getClass("scala.continuations.cpsv")
   lazy val MarkerCPSTypes = definitions.getClass("scala.continuations.cps")
   lazy val MarkerCPSSynth = definitions.getClass("scala.continuations.uncps")
+  lazy val MarkerCPSAdapt = definitions.getClass("scala.continuations.docps")
 
   lazy val Shift = definitions.getClass("scala.continuations.ControlContext")
   lazy val Context = definitions.getClass("scala.continuations.ControlContext")
@@ -46,11 +47,28 @@ trait CPSUtils {
       case x::xs => List(x)
       case Nil => List()
     }
-    val types = ann.filter(a => a.atp.typeSymbol == MarkerCPSTypes) match {
+    val adapt = ann.filter(a => a.atp.typeSymbol == MarkerCPSAdapt) match {
       case x::xs => List(x)
       case Nil => List()
     }
-    synth:::types
+    val types = ann.filter(a => a.atp.typeSymbol == MarkerCPSTypes) /*match {
+      case x::xs => List(x)
+      case Nil => List()
+    }*/
+    
+    val types1: List[AnnotationInfo] = if (types.isEmpty) types else List(types.reduceLeft((a, b) => {
+      val (u0,v0) = (a.atp.typeArgs(0), a.atp.typeArgs(1))
+      val (u1,v1) = (b.atp.typeArgs(0), b.atp.typeArgs(1))
+      vprintln("check lin " + a + " andThen " + b)
+      if (!(v1 <:< u0))
+        throw new TypeError("illegal answer type modification: " + a + " andThen " + b)
+      
+      AnnotationInfo(appliedType(MarkerCPSTypes.tpe, List(u1,v0)),Nil,Nil)
+// FIXME !!!
+//      b
+    }))
+    
+    synth:::adapt:::types1
   }
 
   def unify(ann: List[AnnotationInfo]): List[AnnotationInfo] = {
@@ -59,11 +77,15 @@ trait CPSUtils {
       case x::xs => List(x)
       case Nil => List()
     }
+    val adapt = ann.filter(a => a.atp.typeSymbol == MarkerCPSAdapt) match {
+      case x::xs => List(x)
+      case Nil => List()
+    }
     val types = ann.filter(a => a.atp.typeSymbol == MarkerCPSTypes) match {
       case x::xs => List(x)
       case Nil => List()
     }
-    synth:::types
+    synth:::adapt:::types
   }
 
 
@@ -95,9 +117,22 @@ trait CPSUtils {
 
   type CPSInfo = Option[(Type,Type)]
 
-  def linearize(a: CPSInfo, b: CPSInfo): CPSInfo = {
-    // TODO: check types
-    b orElse a
+  def linearize(a: CPSInfo, b: CPSInfo)(implicit unit: CompilationUnit): CPSInfo = {
+    
+    // FIXME: shouldn't it always go from right to left (bottom to top) ?
+    
+    // TODO: better error reporting
+    (a,b) match {
+      case (Some((u0,v0)), Some((u1,v1))) =>
+        vprintln("check lin " + a + " andThen " + b)
+        if (!(v1 <:< u0))
+          unit.error(scala.tools.nsc.util.NoPosition,"cannot change answer type in composition of cps expressions " +
+          "from " + u1 + " to " + v0 + " because " + v1 + " is not a subtype of " + u0 + ".")
+        Some((u1,v0))
+      case (Some(_), _) => a
+      case (_, Some(_)) => b
+      case _ => None
+    }
   }
 
   

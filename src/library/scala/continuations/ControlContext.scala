@@ -15,11 +15,22 @@ final class ControlContext[+A,-B,+C](val fun: (A => B) => C) {
     new ControlContext((k:(A1 => B)) => fun((x:A) => k(f(x))))
   }
   
-  final def flatMap[A1,B1<:B](f: (A => ControlContext[A1,B1,B])): ControlContext[A1,B1,C] = {
-    new ControlContext((k:(A1 => B1)) => fun((x:A) => f(x).fun(k)))
-  }
+  /*  
+    final def flatMap[A1,B1<:B](f: (A => ControlContext[A1,B1,B])): ControlContext[A1,B1,C] = {
+      new ControlContext((k:(A1 => B1)) => fun((x:A) => f(x).fun(k)))
+    }
+  */
 
-  // TODO: filter
+    final def flatMap[A1,B1,C1<:B](f: (A => ControlContext[A1,B1,C1])): ControlContext[A1,B1,C] = {
+      new ControlContext({ k:(A1 => B1) =>
+        fun { (x:A) =>
+          val res: C1 = f(x).fun(k)
+          res
+        }
+      })
+    }
+
+  // TODO: filter (?)
 
 }
 
@@ -29,6 +40,7 @@ final class ControlContext[+A,-B,+C](val fun: (A => B) => C) {
 private class cpsv[-B] extends Annotation // implementation detail
 
 private class uncps extends Annotation // implementation detail
+private class docps extends Annotation // implementation detail
 
 
 
@@ -40,7 +52,7 @@ object ControlContext {
   
 
   def shift[A,B,C](fun: (A => B) => C): A @cps[B,C] = {
-    throw new NoSuchMethodException("this code has to be compiled with the scala CPS plugin")
+    throw new NoSuchMethodException("this code has to be compiled with the Scala CPS plugin")
   }
 
   def reset[A,C](ctx: =>(A @cps[A,C])): C = {
@@ -64,11 +76,11 @@ object ControlContext {
   }
 
   def shiftUnit[A,B,C>:B](x: A): A @cps[B,C] = {
-    throw new NoSuchMethodException("this code has to be compiled with the scala CPS plugin")
+    throw new NoSuchMethodException("this code has to be compiled with the Scala CPS plugin")
   }
 
   def reify[A,B,C](ctx: =>(A @cps[B,C])): ControlContext[A,B,C] = {
-    throw new NoSuchMethodException("this code has to be compiled with the scala CPS plugin")
+    throw new NoSuchMethodException("this code has to be compiled with the Scala CPS plugin")
   }  
 
   def shiftUnitR[A,B](x: A): ControlContext[A,B,B] = {
