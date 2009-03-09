@@ -11,7 +11,7 @@ trait SimpleTaskRunners extends TaskRunners {
   class SimpleTaskRunner extends AbstractSequentialTaskRunner {
     val runq = new Queue[Task]()
 
-    val maxNest = 150
+    val maxNest = 10//150
     var curNest = 0
 
     def submitTask(f:Task) {
