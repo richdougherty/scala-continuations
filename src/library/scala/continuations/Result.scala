@@ -60,7 +60,7 @@ object Result {
    * will be evaluated with both continuations. Otherwise the thr1
    * continuation will be called with the exception.
    */
-  def flatSend[A,B<:C,C](ret1: A => B, thr1: Throwable => B)(body: => ControlContext[A,B,C]): C =
+  def flatSend[A,B<:D,C<:D,D](ret1: A => B, thr1: Throwable => B)(body: => ControlContext[A,B,C]): D =
     flatSendResult(ret1, thr1, reifyResult(body))
 
 }

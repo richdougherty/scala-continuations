@@ -9,8 +9,8 @@ import scala.collection.mutable._
 
 object Test9 {
 
-  type Monadic[+U, CC[_]] = {
-    def flatMap[V](f: U => CC[V]): CC[V]
+  type Monadic[+U, C[_]] = {
+    def flatMap[V](f: U => C[V]): C[V]
   }
 
   class Reflective[+A, C[_]](xs: Monadic[A,C]) {

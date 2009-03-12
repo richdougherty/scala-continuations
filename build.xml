@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- $Id -->
 
+<!-- TODO: check handling of jsr166y.jar -->
+
 <project name="continuations" default="pack">
   <!-- Edit the file plugin.properties to set
    - scala.home
@@ -53,7 +55,7 @@
     <scalac srcdir="src/plugin"
         destdir="build/build.plugin"
         includes="**/*.scala"
-	addparams=""
+	      addparams="-optimise"
         classpathref="scala.classpath">
     </scalac>
   </target>
@@ -86,10 +88,11 @@
             includes="**/*.scala"
             unchecked="yes"
             deprecation="yes"
-            addparams="-Xplugin:build/pack/${plugin.name}-plugin.jar">
+            addparams="-Xplugin:build/pack/${plugin.name}-plugin.jar -optimise">
       <classpath>
         <pathelement location="${scala.home}/lib/scala-library.jar"/>
         <pathelement location="${scala.home}/lib/scala-compiler.jar"/>
+        <pathelement location="lib/jsr166y.jar"/>
         <pathelement location="build/build.plugin"/>
       </classpath>
     </scalac>
@@ -100,10 +103,11 @@
     <scalac srcdir="doc"
             destdir="build/build.examples"
             includes="examples/**/*.scala"
-            addparams="-Xplugin:build/pack/${plugin.name}-plugin.jar">
+            addparams="-Xplugin:build/pack/${plugin.name}-plugin.jar -optimise">
       <classpath>
         <pathelement location="${scala.home}/lib/scala-library.jar"/>
         <pathelement location="${scala.home}/lib/scala-compiler.jar"/>
+        <pathelement location="lib/jsr166y.jar"/>
         <pathelement location="build/build.plugin"/>
         <pathelement location="build/build.library"/>
       </classpath>
@@ -124,6 +128,7 @@
       <classpath>
         <pathelement location="${scala.home}/lib/scala-compiler.jar" />
         <pathelement location="${scala.home}/lib/scala-library.jar" />
+        <pathelement location="lib/jsr166y.jar"/>
         <pathelement location="build/build.plugin"/>
         <pathelement location="build/build.library"/>
         <pathelement location="build/build.examples"/>
@@ -215,6 +220,7 @@
   <target name="pack.library" depends="build.library">
     <mkdir dir="build/pack"/>
     <jar destfile="build/pack/${plugin.name}-library.jar">
+      <fileset file="lib/jsr166y.jar"/>
       <fileset dir="build/build.library"/>
       <fileset file="plugin.properties"/>
     </jar>

@@ -12,7 +12,7 @@ class cps[-B,+C] extends TypeConstraint
 
 final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
 
-  private def extend[A1,B1<:B](translate: (A1 => B1, Throwable => B1) => (A => B, Throwable => B)): ControlContext[A1,B1,C] = {
+  private def extend[A1,B1<:B,C1<:B](translate: (A1 => B1, Throwable => B1) => (A => B, Throwable => B)): ControlContext[A1,B1,C] = {
     val fun1 = (ret1: A1 => B1, thr1: Throwable => B1) => {
       val (ret, thr) = translate(ret1, thr1)
       fun(ret, thr)
@@ -29,14 +29,18 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
     }
   }
   
-  final def flatMap[A1,B1<:B](f: (A => ControlContext[A1,B1,B])): ControlContext[A1,B1,C] = {
+  final def flatMap[A1,B1<:B,C1<:B](f: (A => ControlContext[A1,B1,C1])): ControlContext[A1,B1,C] = {
     extend { (ret1: A1 => B1, thr1: Throwable => B1) =>
-      val ret = { x: A => flatSend[A1,B1,B](ret1,thr1) { f(x) } }
+      val ret = { x: A => flatSend[A1,B1,C1,B](ret1,thr1) { f(x) } }
       (ret, thr1)
     }
   }
 
-  // TODO: filter
+  final def foreach(f: (A => B)) = {
+    fun(f, ((t: Throwable) => throw t))
+  }
+
+  // TODO: filter (?)
 
   // catch
   
@@ -54,12 +58,12 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
     }
   }
 
-  final def flatCat[A1>:A,B1<:B](pf: PartialFunction[Throwable, ControlContext[A1,B1,B]]): ControlContext[A1,B1,C] = {
+  final def flatCat[A1>:A,B1<:B,C1<:B](pf: PartialFunction[Throwable, ControlContext[A1,B1,C1]]): ControlContext[A1,B1,C] = {
     // Create new THROW continuation; leave return continuation unchanged.
     extend { (ret1: A1 => B1, thr1: Throwable => B1) =>
       val thr = { t: Throwable =>
         if (pf.isDefinedAt(t)) {
-          flatSend[A1,B1,B](ret1, thr1) { pf(t) }
+          flatSend[A1,B1,C1,B](ret1, thr1) { pf(t) }
         } else {
           thr1(t)
         }
@@ -92,12 +96,12 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
       val ret = { a: A =>
         // Save return value, evaluate f, continue with return value unless exception.
         val savedRet = { _: Unit => ret1(a) }
-        flatSend[Unit,B1,B1](savedRet, thr1) { f(()) }
+        flatSend[Unit,B1,B1,B](savedRet, thr1) { f(()) }
       }
       val thr = { t: Throwable =>
         // Save thrown exception, evaluate f, continue by re-throwing exception unless another exception.
         val savedThr = { _: Unit => thr1(t) }
-        flatSend[Unit,B1,B1](savedThr, thr1) { f(()) }
+        flatSend[Unit,B1,B1,B](savedThr, thr1) { f(()) }
       }
       (ret, thr)
     }
@@ -111,10 +115,9 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
 private class cpsv[-B] extends Annotation // implementation detail
 
 private class uncps extends Annotation // implementation detail
+private class docps extends Annotation // implementation detail
 
 
-
-import scala.concurrent.AbstractTaskRunner
 
 object ControlContext {
 
@@ -126,7 +129,7 @@ object ControlContext {
   }
 
   def shift2[A,B,C](fun: (A => B, Throwable => B) => C): A @cps[B,C] = {
-    throw new NoSuchMethodException("this code has to be compiled with the scala CPS plugin")
+    throw new NoSuchMethodException("this code has to be compiled with the Scala CPS plugin")
   }
 
   def reset[A,C](ctx: =>(A @cps[A,C])): C = {
@@ -142,13 +145,9 @@ object ControlContext {
   }
 
   def relay[A,B](ret: A => B, thr: Throwable => B)(ctx: =>(A @cps[B,B])): B = {
-    flatSend(ret, thr) { reify[A,B,B](ctx) }
+    flatSend[A,B,B,B](ret, thr) { reify[A,B,B](ctx) }
   }
 
-  def spawn(ctx: =>(Any @cps[Unit,Any]))(implicit sched: AbstractTaskRunner): Unit = {
-    sched.submitTask(() => run(ctx))
-  }
-  
   // methods below are mostly implementation details and are not
   // needed frequently in client code
 
@@ -157,11 +156,11 @@ object ControlContext {
   }
 
   def shiftUnit[A,B,C>:B](x: A): A @cps[B,C] = {
-    throw new NoSuchMethodException("this code has to be compiled with the scala CPS plugin")
+    throw new NoSuchMethodException("this code has to be compiled with the Scala CPS plugin")
   }
 
   def reify[A,B,C](ctx: =>(A @cps[B,C])): ControlContext[A,B,C] = {
-    throw new NoSuchMethodException("this code has to be compiled with the scala CPS plugin")
+    throw new NoSuchMethodException("this code has to be compiled with the Scala CPS plugin")
   }  
 
   def shiftUnitR[A,B](x: A): ControlContext[A,B,B] = {

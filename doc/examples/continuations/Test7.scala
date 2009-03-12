@@ -7,12 +7,14 @@ import scala.continuations.ControlContext._
 
 import scala.collection.mutable._
 
+import scala.concurrent._
+/*
 final class FutureCell[A] {
   var value: A = _
   var hasVal: Boolean = false
   val handlers = new Queue[A=>Any]()
   
-  def get(): A @cps[Any,Any]= {
+  def get(): A @cps[Unit,Unit]= {
     shift((k:(A => Any)) =>
       if (hasVal) {
         val v = value
@@ -38,18 +40,18 @@ final class FutureCell[A] {
     }
   }
 }
-
-object Test7 {
+*/
+object Test7 extends ImmediateTaskRunners {
 
   abstract class DStream[A] {
     
     def isEmpty: Boolean
 
     def head: A
-    def tail: DStream[A] @cps[Any,Any]
-    def tail_=(x: =>(DStream[A] @cps[Any,Any])): Unit
+    def tail: DStream[A] @cps[Unit,Unit]
+    def tail_=(x: =>(DStream[A] @cps[Unit,Unit])): Unit
     
-    def filter(p: (A=>Boolean)): DStream[A] @cps[Any,Any]
+    def filter(p: (A=>Boolean)): DStream[A] @cps[Unit,Unit]
   }
 
   case class DNil[A]() extends DStream[A] {
@@ -58,20 +60,20 @@ object Test7 {
 
     def head = throw new Exception("head of empty stream")
     def tail = throw new Exception("tail of empty stream")
-    def tail_=(x: =>(DStream[A] @cps[Any,Any])) =
+    def tail_=(x: =>(DStream[A] @cps[Unit,Unit])) =
       throw new Exception("setting tail of empty stream")
 
-    def filter(p: (A=>Boolean)): DStream[A] @cps[Any,Any] = this
+    def filter(p: (A=>Boolean)): DStream[A] @cps[Unit,Unit] = this
   }
 
   case class DCons[A](val head: A) extends DStream[A] {
 
-    private val tl = new FutureCell[DStream[A]]
+    private val tl = new SingleAssignmentCell[DStream[A]]
 
     def tail = tl.get()
 
-    def tail_=(x: =>(DStream[A] @cps[Any,Any])) = 
-      reset[Any,Any](tl.set(x))
+    def tail_=(x: =>(DStream[A] @cps[Unit,Unit])) = 
+      reset[Unit,Unit](tl.set(x))
 
     def isEmpty = false
 
@@ -113,7 +115,7 @@ object Test7 {
   }
 
 
-  def sieve(xs: DStream[Int]): DStream[Int] @cps[Any, Any] = {
+  def sieve(xs: DStream[Int]): DStream[Int] @cps[Unit,Unit] = {
 
     if (!xs.isEmpty) {
       val zs = DCons(xs.head)
@@ -125,7 +127,7 @@ object Test7 {
   }
   
    
-  def consume(xs: DStream[Int]): Unit @cps[Any, Any] = {
+  def consume(xs: DStream[Int]): Unit @cps[Unit,Unit] = {
 
     if (!xs.isEmpty) {
       println(xs.head)

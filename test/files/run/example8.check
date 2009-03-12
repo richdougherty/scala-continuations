@@ -1,59 +1,39 @@
 === synchronous
 starting up...
-inside rule body (exchanging value item 1)
 received: item 1
-inside rule body (exchanging value item 2)
 received: item 2
-inside rule body (exchanging value item 3)
 received: item 3
-inside rule body (exchanging value item 4)
 received: item 4
 => result: (done producing,done consuming)
 
 === asynchronous 0
 starting up...
-inside rule body (exchanging value item 1)
 received: item 1
-inside rule body (exchanging value item 2)
 received: item 2
-inside rule body (exchanging value item 3)
 received: item 3
-inside rule body (exchanging value item 4)
 received: item 4
 => result: (done producing,done consuming)
 
 === asynchronous 1
 starting up...
-inside rule body (exchanging value item 1)
 received: item 1
-inside rule body (exchanging value item 2)
 received: item 2
-inside rule body (exchanging value item 3)
 received: item 3
-inside rule body (exchanging value item 4)
 received: item 4
 => result: (done producing,done consuming)
 
 === asynchronous 2
 starting up...
-inside rule body (exchanging value item 1)
 received: item 1
-inside rule body (exchanging value item 2)
 received: item 2
-inside rule body (exchanging value item 3)
 received: item 3
-inside rule body (exchanging value item 4)
 received: item 4
 => result: (done producing,done consuming)
 
 === asynchronous 3
 starting up...
-inside rule body (exchanging value item 1)
 received: item 1
-inside rule body (exchanging value item 2)
 received: item 2
-inside rule body (exchanging value item 3)
 received: item 3
-inside rule body (exchanging value item 4)
 received: item 4
 => result: (done producing,done consuming)

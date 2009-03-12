@@ -30,6 +30,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
   class ANFTransformer(unit: CompilationUnit) extends TypingTransformer(unit) {
 
+    implicit val _unit = unit // allow code in CPSUtils.scala to report errors FIXME: cleanup
     var cpsAllowed: Boolean = false // detect cps code in places we do not handle (yet)
 
     override def transform(tree: Tree): Tree = {
@@ -317,6 +318,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
         // TODO: what about DefDefs?
         // TODO: relation to top-level val def?
+        // TODO: what about lazy vals?
 
         // FIXME:: problem if lhs is not a plain symbol (like val Elem(x,y) = ...)
 

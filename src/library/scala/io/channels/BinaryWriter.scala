@@ -19,7 +19,14 @@ final class BinaryWriter(selector: ASelector, channel: SelectableChannel with Wr
   }
 
   def write(binary: Binary): Unit @suspendable = {
-    for (buffer <- binary.byteBuffers) { writeBuffer(buffer) }
+    // XXX: Manual foreach until cps conversion handles properly
+    def foreach0[A](i: Iterator[A])(body: A => Unit @suspendable): Unit @suspendable = {
+      if (i.hasNext) {
+        body
+        foreach0(i)(body)
+      } else ()
+    }
+    foreach0(binary.byteBuffers.elements) { buffer: ByteBuffer => writeBuffer(buffer) }
   }
 
 }
