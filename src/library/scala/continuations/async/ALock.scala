@@ -68,4 +68,31 @@ class ALock {
     }
   }
 
+  // TODO: Actually implement this.
+  def sync[A](body: => A @suspendable): A @suspendable = {
+    lock
+    val result = body
+    unlock
+    result
+  }
+  
+  /*
+  def sync[A,B](body: => A @cps[B,B]): A @cps[B,B] = {
+    shift2 { (ret: A => B, thr: Throwable => B) =>
+      reset {
+        println("sync: claiming lock")
+        lock
+        println("sync: building ret0 and thr0")
+        val ret0 = { x: A => Result.send(ret, thr) { unlock ; x } }
+        val thr0 = { t: Throwable => Result.send(thr, thr) { unlock ; t } }
+        println("sync: calling relay")
+        relay(ret0, thr0) {
+          println("sync: executing body")
+          body
+          //println("sync: finished executing body")
+        }
+      }
+    }
+  }
+  */
 }
