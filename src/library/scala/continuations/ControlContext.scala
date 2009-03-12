@@ -70,17 +70,17 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
 
   // finally
 
-  final def fin(f: Unit => Unit): ControlContext[A,B,C] = {
+  final def fin(f: => Unit): ControlContext[A,B,C] = {
     extend { (ret1: A => B, thr1: Throwable => B) => 
       val ret = { a: A =>
         // Save return value, evaluate f, continue with return value unless exception.
         val savedRet = { _: Unit => ret1(a) }
-        send[Unit,B](savedRet, thr1) { f(()) }
+        send[Unit,B](savedRet, thr1) { f }
       }
       val thr = { t: Throwable =>
         // Save thrown exception, evaluate f, continue by re-throwing exception unless another exception.
         val savedThr = { _: Unit => thr1(t) }
-        send[Unit,B](savedThr, thr1) { f(()) }
+        send[Unit,B](savedThr, thr1) { f }
       }
       (ret, thr)
     }
