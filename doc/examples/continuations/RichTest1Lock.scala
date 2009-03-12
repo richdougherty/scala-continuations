@@ -14,7 +14,7 @@ import scala.continuations.async._
 import scala.continuations.ControlContext._
 import java.util.concurrent.Semaphore
 
-object TestAsync0 {
+object RichTest1Lock {
 
   def main(args: Array[String]) {
     // TODO: Come up with something more robust than Thread.sleep() for coordinating actors

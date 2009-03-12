@@ -3,7 +3,7 @@
 object Test {
   
   def main(args: Array[String]): Any = {
-    examples.continuations.TestAsync1.main(args)
+    examples.continuations.RichTest2Promise.main(args)
   }
   
 }

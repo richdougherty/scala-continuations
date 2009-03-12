@@ -7,14 +7,15 @@ import java.nio.channels._
 import java.nio.ByteBuffer
 import java.util.concurrent.Semaphore
 import scala.actors.Actor
+import scala.collections.immutable.Binary
 import scala.continuations._
 import scala.continuations.ControlContext._
 import scala.io.channels._
 
-object Test16 {
+object RichTest5IterateeRW {
 
   def main(args: Array[String]) {
-    for (i <- 0 until 100) { openClose(i.toString) }
+    for (i <- 0 until 10) { openClose(i.toString) }
   }
 
   def openClose(id: String) = {
@@ -69,10 +70,13 @@ object Test16 {
         log("Server accepting")
         val sc1 = AOperations.accept(selector, ssc)
         sc1.configureBlocking(false)
-        val message1 = "helloworld".getBytes.toList
+        val message1 = Binary.fromString("helloworld")
         println("Sending: " + message1)
-        writeAll(sc1, message1)
-        sc1.close
+        val writer = ChannelIteration.writer(selector, sc1)
+        writer.writeAll(message1)
+        println("Server connected: " + sc1.isConnected)
+        writer.writeClose
+        println("Server connected: " + sc1.isConnected)
         ssc.close
         log("Server finished")
         finished.release
@@ -89,9 +93,13 @@ object Test16 {
         log("Client finishing connection")
         AOperations.finishConnect(selector, sc2)
         log("Client reading")
-        val message1 = readAll(sc2)
+
+        val reader = ChannelIteration.reader(selector, sc2, 512)
+        val message1 = reader.readAll
         println("Received: " + message1)
-        sc2.close
+        println("Client connected: " + sc2.isConnected)
+        reader.readClose
+        println("Client connected: " + sc2.isConnected)
         log("Client finished")
         finished.release
       }

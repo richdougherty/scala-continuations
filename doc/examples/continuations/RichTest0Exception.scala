@@ -5,7 +5,7 @@ package examples.continuations
 import scala.continuations._
 import scala.continuations.ControlContext._
 
-object TestException0 {
+object RichTest0Exception {
 
   def printResult(ctx: =>(Any @cps[Unit,Unit])): Unit = {
     println("---")
