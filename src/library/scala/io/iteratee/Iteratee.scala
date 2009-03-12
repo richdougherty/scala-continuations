@@ -10,27 +10,28 @@ case object StreamEnd extends StreamEvent[Nothing]
 case class StreamError(t: Throwable) extends StreamEvent[Nothing]
 
 /**
+ * Rules about how to "chunk" a particular type of element for use in
+ * a StreamEvent. Fewer operations may be needed once we have Scala
+ * 2.8's collections.
+ */
+trait Chunking[T,El] {
+  val empty: T
+  def length(a: T): Int
+  def join(a: T, b: T): T
+  def splitAt(a: T, n: Int): (T,T)
+  def get(a: T, i: Int): El
+  def toList(a: T): List[El]
+  object Cons {
+    def unapply(a: T): Option[(El, T)] = uncons(a)
+  }
+  protected def uncons(a: T): Option[(El, T)]
+}
+
+/**
  * @see http://okmij.org/ftp/Streams.html#iteratee
  */
 object Iteratee {
 
-  /**
-   * Rules about how to "chunk" a particular type of element for use
-   * in a StreamEvent. Fewer operations may be needed once we have
-   * Scala 2.8's collections.
-   */
-  trait Chunking[T,El] {
-    val empty: T
-    def length(a: T): Int
-    def join(a: T, b: T): T
-    def splitAt(a: T, n: Int): (T,T)
-    def get(a: T, i: Int): El
-    def toList(a: T): List[El]
-    object Cons {
-      def unapply(a: T): Option[(El, T)] = uncons(a)
-    }
-    protected def uncons(a: T): Option[(El, T)]
-  }
   implicit val binaryChunking: Chunking[Binary,Byte] = new Chunking[Binary,Byte] {
     val empty = Binary.empty
     def length(a: Binary): Int = a.length
