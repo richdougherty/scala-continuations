@@ -21,19 +21,53 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
   }
 
   // linear execution
+
+  case class Rethrowable(t: Throwable) extends Throwable
  
   final def map[A1](f: (A => A1)): ControlContext[A1,B,C] = {
+    /*
     extend { (ret1: A1 => B, thr1: Throwable => B) =>
       val ret = { x: A => send(ret1,thr1) { f(x) } }
       (ret, thr1)
     }
+    */
+    val fun1 = (ret1: A1 => B, thr1: Throwable => B) => {
+      val ret: A => B = { x: A =>
+        var captureExceptions = true
+        try {
+          val x1 = f(x)
+          captureExceptions = false
+          ret1(x1)
+        } catch {
+          case t if captureExceptions => thr1(t)
+        }
+      }
+      fun(ret, thr1)
+    }
+    new ControlContext(fun1)
   }
   
   final def flatMap[A1,B1<:B,C1<:B](f: (A => ControlContext[A1,B1,C1])): ControlContext[A1,B1,C] = {
+    /*
     extend { (ret1: A1 => B1, thr1: Throwable => B1) =>
       val ret = { x: A => flatSend[A1,B1,C1,B](ret1,thr1) { f(x) } }
       (ret, thr1)
     }
+    */
+    val fun1 = (ret1: A1 => B1, thr1: Throwable => B1) => {
+      val ret: A => B = { x: A =>
+        var captureExceptions = true
+        try {
+          val cc1 = f(x)
+          captureExceptions = false
+          cc1.fun(ret1, thr1)
+        } catch {
+          case t if captureExceptions => thr1(t)
+        }
+      }
+      fun(ret, thr1)
+    }
+    new ControlContext(fun1)
   }
 
   final def foreach(f: (A => B)) = {
