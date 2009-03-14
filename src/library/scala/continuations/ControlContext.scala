@@ -12,25 +12,11 @@ class cps[-B,+C] extends TypeConstraint
 
 final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
 
-  private def extend[A1,B1<:B,C1<:B](translate: (A1 => B1, Throwable => B1) => (A => B, Throwable => B)): ControlContext[A1,B1,C] = {
-    val fun1 = (ret1: A1 => B1, thr1: Throwable => B1) => {
-      val (ret, thr) = translate(ret1, thr1)
-      fun(ret, thr)
-    }
-    new ControlContext(fun1)
-  }
-
   // linear execution
 
   case class Rethrowable(t: Throwable) extends Throwable
  
   final def map[A1](f: (A => A1)): ControlContext[A1,B,C] = {
-    /*
-    extend { (ret1: A1 => B, thr1: Throwable => B) =>
-      val ret = { x: A => send(ret1,thr1) { f(x) } }
-      (ret, thr1)
-    }
-    */
     val fun1 = (ret1: A1 => B, thr1: Throwable => B) => {
       val ret: A => B = { x: A =>
         var captureExceptions = true
@@ -48,12 +34,6 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
   }
   
   final def flatMap[A1,B1<:B,C1<:B](f: (A => ControlContext[A1,B1,C1])): ControlContext[A1,B1,C] = {
-    /*
-    extend { (ret1: A1 => B1, thr1: Throwable => B1) =>
-      val ret = { x: A => flatSend[A1,B1,C1,B](ret1,thr1) { f(x) } }
-      (ret, thr1)
-    }
-    */
     val fun1 = (ret1: A1 => B1, thr1: Throwable => B1) => {
       val ret: A => B = { x: A =>
         var captureExceptions = true
@@ -79,19 +59,6 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
   // catch
   
   final def cat[A1>:A](pf: PartialFunction[Throwable, A1]): ControlContext[A1,B,C] = {
-    // Create new THROW continuation; leave return continuation unchanged.
-    /*
-    extend { (ret1: A1 => B, thr1: Throwable => B) =>
-      val thr = { t: Throwable =>
-        if (pf.isDefinedAt(t)) {
-          send[A1,B](ret1, thr1) { pf(t) }
-        } else {
-          thr1(t)
-        }
-      }
-      (ret1, thr)
-    }
-    */
     val fun1 = (ret1: A1 => B, thr1: Throwable => B) => {
       val thr: Throwable => B = { t: Throwable =>
         var captureExceptions = true
@@ -114,19 +81,6 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
   }
 
   final def flatCat[A1>:A,B1<:B,C1<:B](pf: PartialFunction[Throwable, ControlContext[A1,B1,C1]]): ControlContext[A1,B1,C] = {
-    // Create new THROW continuation; leave return continuation unchanged.
-    /*
-    extend { (ret1: A1 => B1, thr1: Throwable => B1) =>
-      val thr = { t: Throwable =>
-        if (pf.isDefinedAt(t)) {
-          flatSend[A1,B1,C1,B](ret1, thr1) { pf(t) }
-        } else {
-          thr1(t)
-        }
-      }
-      (ret1, thr)
-    }
-    */
     val fun1 = (ret1: A1 => B1, thr1: Throwable => B1) => {
       val thr: Throwable => B = { t: Throwable =>
         var captureExceptions = true
@@ -151,21 +105,6 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
   // finally
 
   final def fin(f: => Unit): ControlContext[A,B,C] = {
-    /*
-    extend { (ret1: A => B, thr1: Throwable => B) => 
-      val ret = { a: A =>
-        // Save return value, evaluate f, continue with return value unless exception.
-        val savedRet = { _: Unit => ret1(a) }
-        send[Unit,B](savedRet, thr1) { f }
-      }
-      val thr = { t: Throwable =>
-        // Save thrown exception, evaluate f, continue by re-throwing exception unless another exception.
-        val savedThr = { _: Unit => thr1(t) }
-        send[Unit,B](savedThr, thr1) { f }
-      }
-      (ret, thr)
-    }
-    */
     val fun1 = (ret1: A => B, thr1: Throwable => B) => {
       val ret: A => B = { x: A =>
         var captureExceptions = true
@@ -194,21 +133,6 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
 
   // XXX: Is type of f correct?
   final def flatFin[B1<:B,C1<:B](f: Unit => ControlContext[Unit,B1,C1]): ControlContext[A,B1,C] = {
-    /*
-    extend { (ret1: A => B1, thr1: Throwable => B1) => 
-      val ret = { a: A =>
-        // Save return value, evaluate f, continue with return value unless exception.
-        val savedRet = { _: Unit => ret1(a) }
-        flatSend[Unit,B1,B1,B](savedRet, thr1) { f(()) }
-      }
-      val thr = { t: Throwable =>
-        // Save thrown exception, evaluate f, continue by re-throwing exception unless another exception.
-        val savedThr = { _: Unit => thr1(t) }
-        flatSend[Unit,B1,B1,B](savedThr, thr1) { f(()) }
-      }
-      (ret, thr)
-    }
-    */
     val fun1 = { (ret1: A => B1, thr1: Throwable => B1) =>
       val ret: A => B = { x: A =>
         var captureExceptions = true
