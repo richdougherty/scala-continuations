@@ -39,7 +39,7 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
           captureExceptions = false
           ret1(x1)
         } catch {
-          case t if captureExceptions => thr1(t)
+          case t1 if captureExceptions => thr1(t1)
         }
       }
       fun(ret, thr1)
@@ -62,7 +62,7 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
           captureExceptions = false
           cc1.fun(ret1, thr1)
         } catch {
-          case t if captureExceptions => thr1(t)
+          case t1 if captureExceptions => thr1(t1)
         }
       }
       fun(ret, thr1)
@@ -80,6 +80,7 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
   
   final def cat[A1>:A](pf: PartialFunction[Throwable, A1]): ControlContext[A1,B,C] = {
     // Create new THROW continuation; leave return continuation unchanged.
+    /*
     extend { (ret1: A1 => B, thr1: Throwable => B) =>
       val thr = { t: Throwable =>
         if (pf.isDefinedAt(t)) {
@@ -90,10 +91,31 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
       }
       (ret1, thr)
     }
+    */
+    val fun1 = (ret1: A1 => B, thr1: Throwable => B) => {
+      val thr: Throwable => B = { t: Throwable =>
+        var captureExceptions = true
+        try {
+          if (pf.isDefinedAt(t)) {
+            val x1 = pf(t)
+            captureExceptions = false
+            ret1(x1)
+          } else {
+            captureExceptions = false
+            thr1(t)
+          }
+        } catch {
+          case t1 if captureExceptions => thr1(t1)
+        }
+      }
+      fun(ret1, thr)
+    }
+    new ControlContext(fun1)
   }
 
   final def flatCat[A1>:A,B1<:B,C1<:B](pf: PartialFunction[Throwable, ControlContext[A1,B1,C1]]): ControlContext[A1,B1,C] = {
     // Create new THROW continuation; leave return continuation unchanged.
+    /*
     extend { (ret1: A1 => B1, thr1: Throwable => B1) =>
       val thr = { t: Throwable =>
         if (pf.isDefinedAt(t)) {
@@ -104,11 +126,32 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
       }
       (ret1, thr)
     }
+    */
+    val fun1 = (ret1: A1 => B1, thr1: Throwable => B1) => {
+      val thr: Throwable => B = { t: Throwable =>
+        var captureExceptions = true
+        try {
+          if (pf.isDefinedAt(t)) {
+            val cc1 = pf(t)
+            captureExceptions = false
+            cc1.fun(ret1, thr1)
+          } else {
+            captureExceptions = false
+            thr1(t)
+          }
+        } catch {
+          case t1 if captureExceptions => thr1(t1)
+        }
+      }
+      fun(ret1, thr)
+    }
+    new ControlContext(fun1)
   }
 
   // finally
 
   final def fin(f: => Unit): ControlContext[A,B,C] = {
+    /*
     extend { (ret1: A => B, thr1: Throwable => B) => 
       val ret = { a: A =>
         // Save return value, evaluate f, continue with return value unless exception.
@@ -122,10 +165,36 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
       }
       (ret, thr)
     }
+    */
+    val fun1 = (ret1: A => B, thr1: Throwable => B) => {
+      val ret: A => B = { x: A =>
+        var captureExceptions = true
+        try {
+          f
+          captureExceptions = false
+          ret1(x)
+        } catch {
+          case t1 if captureExceptions => thr1(t1)
+        }
+      }
+      val thr: Throwable => B = { t: Throwable =>
+        var captureExceptions = true
+        try {
+          f
+          captureExceptions = false
+          thr1(t)
+        } catch {
+          case t1 if captureExceptions => thr1(t1)
+        }
+      }
+      fun(ret, thr1)
+    }
+    new ControlContext(fun1)
   }
 
   // XXX: Is type of f correct?
-  final def flatFin[B1<:B](f: Unit => ControlContext[Unit,B1,B1]): ControlContext[A,B1,C] = {
+  final def flatFin[B1<:B,C1<:B](f: Unit => ControlContext[Unit,B1,C1]): ControlContext[A,B1,C] = {
+    /*
     extend { (ret1: A => B1, thr1: Throwable => B1) => 
       val ret = { a: A =>
         // Save return value, evaluate f, continue with return value unless exception.
@@ -139,8 +208,34 @@ final class ControlContext[+A,-B,+C](val fun: (A => B, Throwable => B) => C) {
       }
       (ret, thr)
     }
+    */
+    val fun1 = { (ret1: A => B1, thr1: Throwable => B1) =>
+      val ret: A => B = { x: A =>
+        var captureExceptions = true
+        try {
+          val cc1 = f()
+          captureExceptions = false
+          val savedRet = { _: Unit => ret1(x) }
+          cc1.fun(savedRet, thr1)
+        } catch {
+          case t1 if captureExceptions => thr1(t1)
+        }
+      }
+      val thr: Throwable => B = { t: Throwable =>
+        var captureExceptions = true
+        try {
+          val cc1 = f()
+          captureExceptions = false
+          val savedThr = { _: Unit => thr1(t) }
+          cc1.fun(savedThr, thr1)
+        } catch {
+          case t1 if captureExceptions => thr1(t1)
+        }
+      }
+      fun(ret, thr1)
+    }
+    new ControlContext(fun1)
   }
-
 }
 
 
