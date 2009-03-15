@@ -4,7 +4,7 @@ import scala.continuations.ControlContext._
 
 case class Label(k: Label => Unit)
 
-object Label {
+object Goto {
 
   private case class GotoThunk(l: Label) extends Throwable
 
@@ -27,7 +27,7 @@ object Label {
 object RichTest11Goto {
 
   def main(args: Array[String]) = {
-    import Label._
+    import Goto._
 
     reset {
       var sum = 0
