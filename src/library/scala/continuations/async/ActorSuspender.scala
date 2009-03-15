@@ -29,11 +29,13 @@ object ActorSuspender extends Suspender {
     def suspend: Nothing = synchronized {
       state match {
         case Initial => {
+          Actor.self // https://lampsvn.epfl.ch/trac/scala/ticket/1794
           val ch = new Channel[Either[Throwable,A]] /* Actor.self */
           state = Suspended(ch)
           reactOn(ch)
         }
         case Resumed(result) => {
+          Actor.self // https://lampsvn.epfl.ch/trac/scala/ticket/1794
           val ch = new Channel[Either[Throwable,A]] /* Actor.self */
           state = Done
           ch ! result
