@@ -2,25 +2,27 @@ package examples.continuations
 
 import scala.continuations.ControlContext._
 
-case class Label(k: Label => Unit)
-
 object Goto {
 
-  private case class GotoThunk(l: Label) extends Throwable
+  case class Label(k: Label => Unit)
 
-  def label: Label @suspendable = shift { (k: Label => Unit) =>
-    val l = new Label(k)
-    def execute: Unit = {
-      try {
-        k(l)
-      } catch {
-        case GotoThunk(l0) if (l0 == l) => execute
-      }
+  private case class GotoThunk(label: Label) extends Throwable
+
+  def label: Label @suspendable =
+    shift((k: Label => Unit) => executeFrom(Label(k)))
+
+  def goto(l: Label): Nothing =
+    throw new GotoThunk(l)
+
+  private def executeFrom(label: Label): Unit = {
+    val nextLabel = try {
+      label.k(label)
+      None
+    } catch {
+      case g: GotoThunk => Some(g.label)
     }
-    execute
+    if (nextLabel.isDefined) executeFrom(nextLabel.get)
   }
-
-  def goto(l: Label): Nothing = throw new GotoThunk(l)
 
 }
 
@@ -33,7 +35,7 @@ object RichTest11Goto {
       var sum = 0
       var i = 0
       val beforeLoop = label
-      if (i < 10) {
+      if (i < 10000) {
         println(i)
         sum += i
         i += 1
