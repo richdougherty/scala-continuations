@@ -12,14 +12,16 @@ import scala.continuations._
 import scala.continuations.ControlContext._
 import scala.io.channels._
 
-object RichTest5IterateeRW {
+object RichTest6IterateeRW {
 
   def main(args: Array[String]) {
-    for (i <- 0 until 10) { openClose(i.toString) }
+    for (i <- 0 until 100) {
+      openClose(i.toString)
+    }
   }
 
   def openClose(id: String) = {
-    def log(msg: String) = () //println(id + ": " + msg)
+    def log(msg: String) = println(id + ": " + msg)
 
     log("Starting")
 
@@ -66,41 +68,41 @@ object RichTest5IterateeRW {
 
     Actor.actor {
       reset {
-        log("Server actor starting")
-        log("Server accepting")
+        //log("Server accepting")
         val sc1 = AOperations.accept(selector, ssc)
         sc1.configureBlocking(false)
         val message1 = Binary.fromString("helloworld")
-        println("Sending: " + message1)
+        log("Sending: " + message1)
         val writer = ChannelIteration.writer(selector, sc1)
         writer.writeAll(message1)
-        println("Server connected: " + sc1.isConnected)
+        //log("Server connected: " + sc1.isConnected)
         writer.writeClose
-        println("Server connected: " + sc1.isConnected)
+        //log("Server connected: " + sc1.isConnected)
         ssc.close
-        log("Server finished")
+        //log("Server finished")
         finished.release
       }
     }
 
     Actor.actor {
       reset {
-        log("Client actor starting")
+        //log("Client actor starting")
         val sc2: SocketChannel = SocketChannel.open
         sc2.configureBlocking(false)
-        log("Client connecting")
+        //log("Client connecting")
         sc2.connect(address)
-        log("Client finishing connection")
+        //log("Client finishing connection")
         AOperations.finishConnect(selector, sc2)
-        log("Client reading")
+        //log("Client reading")
 
         val reader = ChannelIteration.reader(selector, sc2, 512)
         val message1 = reader.readAll
-        println("Received: " + message1)
-        println("Client connected: " + sc2.isConnected)
+        log("Received: " + message1)
+        //log("Client connected: " + sc2.isConnected)
         reader.readClose
-        println("Client connected: " + sc2.isConnected)
-        log("Client finished")
+        //log("Client nearly finished")
+        //log("Client connected: " + sc2.isConnected)
+        //log("Client finished")
         finished.release
       }
     }

@@ -49,25 +49,13 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
           log("transforming " + dd.symbol)
 
           atOwner(dd.symbol) {
-            val rhs1 = transExpr(rhs, None, getAnswerTypeAnn(tpt.tpe))
+            val rhs1 = transExpr(rhs, Some(tpt.tpe), None, getAnswerTypeAnn(tpt.tpe))
       
             log("result "+rhs1)
             log("result is of type "+rhs1.tpe)
 
             copy.DefDef(dd, mods, name, transformTypeDefs(tparams), transformValDefss(vparamss),
                         transform(tpt), rhs1)
-          }
-
-        case ff @ Function(vparams, body) =>
-          log("transforming anon function " + ff.symbol)
-
-          atOwner(ff.symbol) {
-            val body1 = transExpr(body, None, getAnswerTypeAnn(body.tpe))
-    
-            log("result "+body1)
-            log("result is of type "+body1.tpe)
-
-            copy.Function(ff, transformValDefs(vparams), body1)
           }
 
         case vd @ ValDef(mods, name, tpt, rhs) => // object-level valdefs
@@ -77,7 +65,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
             assert(getAnswerTypeAnn(tpt.tpe) == None)
 
-            val rhs1 = transExpr(rhs, None, None)
+            val rhs1 = transExpr(rhs, Some(tpt.tpe), None, None)
 
             copy.ValDef(vd, mods, name, transform(tpt), rhs1)
           }
@@ -89,7 +77,7 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
         case Apply(_,_) =>
           // this allows reset { ... } in object constructors
           // it's kind of a hack to put it here (see note above)
-          transExpr(tree, None, None)
+          transExpr(tree, None, None, None) // FIXME: declared type here
         
         case _ => 
           
@@ -106,8 +94,8 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
     }
 
 
-    def transExpr(tree: Tree, cpsA: CPSInfo, cpsR: CPSInfo): Tree = {
-      transTailValue(tree, cpsA, cpsR) match {
+    def transExpr(tree: Tree, declaredType: Option[Type], cpsA: CPSInfo, cpsR: CPSInfo): Tree = {
+      transTailValue(tree, declaredType, cpsA, cpsR) match {
         case (Nil, b) => b
         case (a, b) =>
           copy.Block(tree, a,b)
@@ -124,9 +112,9 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
       val (stm,expr) = List.unzip(for ((a,tp) <- args.zip(formals ::: List.make(overshoot, NoType))) yield {
         tp match {
           case TypeRef(_, sym, List(elemtp)) if sym == ByNameParamClass =>
-            (Nil, transExpr(a, None, getAnswerTypeAnn(elemtp)))
+            (Nil, transExpr(a, None, None, getAnswerTypeAnn(elemtp))) // FIXME: declared type here?
           case _ =>
-            val (valStm, valExpr, valSpc) = transInlineValue(a, spc)
+            val (valStm, valExpr, valSpc) = transInlineValue(a, Some(tp), spc)
             spc = valSpc
             (valStm, valExpr)
         }
@@ -136,12 +124,12 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
     }
 
 
-    def transValue(tree: Tree, cpsA: CPSInfo, cpsR: CPSInfo): (List[Tree], Tree, CPSInfo) = {
+    def transValue(tree: Tree, declaredType: Option[Type], cpsA: CPSInfo, cpsR: CPSInfo): (List[Tree], Tree, CPSInfo) = {
       tree match {
         case Block(stms, expr) => 
           val (cpsA2, cpsR2) = (None, getAnswerTypeAnn(tree.tpe))
         
-          val (a, b) = transBlock(stms, expr, cpsA2, cpsR2)
+          val (a, b) = transBlock(stms, expr, declaredType, cpsA2, cpsR2)
           
           val tree1 = copy.Block(tree, a, b) // no updateSynthFlag here!!!
 
@@ -149,11 +137,11 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
         case If(cond, thenp, elsep) =>
           
-          val (condStats, condVal, spc) = transInlineValue(cond, cpsA)
+          val (condStats, condVal, spc) = transInlineValue(cond, None, cpsA)
 
           val (cpsA2, cpsR2) = (None, getAnswerTypeAnn(tree.tpe))
-          val thenVal = transExpr(thenp, cpsA2, cpsR2)
-          val elseVal = transExpr(elsep, cpsA2, cpsR2)
+          val thenVal = transExpr(thenp, declaredType, cpsA2, cpsR2)
+          val elseVal = transExpr(elsep, declaredType, cpsA2, cpsR2)
           
           // TODO: check that then and else parts agree (necessary??)
           
@@ -170,12 +158,12 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
         case Match(selector, cases) =>
         
-          val (selStats, selVal, spc) = transInlineValue(selector, cpsA)
+          val (selStats, selVal, spc) = transInlineValue(selector, None, cpsA)
           val (cpsA2, cpsR2) = (None, getAnswerTypeAnn(tree.tpe))
 
           val caseVals = for {
             cd @ CaseDef(pat, guard, body) <- cases
-            val bodyVal = transExpr(body, cpsA2, cpsR2)
+            val bodyVal = transExpr(body, declaredType, cpsA2, cpsR2)
           } yield {
             copy.CaseDef(cd, transform(pat), transform(guard), bodyVal)
           }
@@ -185,68 +173,101 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
         case LabelDef(name, params, rhs) =>
            // no cps code allowed in while loop!
-          val rhsVal = transExpr(rhs, None, None)
+          val rhsVal = transExpr(rhs, None, None, None)
 
           (Nil, updateSynthFlag(copy.LabelDef(tree, name, params, rhsVal)), cpsA)
           
 
         case Try(block, catches, finalizer) =>
           // no cps code allowed in try/catch/finally!
-          val blockVal = transExpr(block, None, None)
+          val blockVal = transExpr(block, declaredType, None, None)
           
           val catchVals = for {
             cd @ CaseDef(pat, guard, body) <- catches
-            val bodyVal = transExpr(body, None, None)
+            val bodyVal = transExpr(body, declaredType, None, None)
           } yield {
             copy.CaseDef(cd, transform(pat), transform(guard), bodyVal)
           }
 
-          val finallyVal = transExpr(finalizer, None, None)
+          val finallyVal = transExpr(finalizer, None, None, None)
           
           (Nil, updateSynthFlag(copy.Try(tree, blockVal, catchVals, finallyVal)), cpsA)
 
         case Assign(lhs, rhs) =>
           // allow cps code in rhs only
-          val (stms, expr, spc) = transInlineValue(rhs, cpsA)
+          val (stms, expr, spc) = transInlineValue(rhs, None, cpsA) // FIXME: declared type here
           (stms, updateSynthFlag(copy.Assign(tree, transform(lhs), expr)), spc)
           
         case Return(expr0) =>
-          val (stms, expr, spc) = transInlineValue(expr0, cpsA)
+          val (stms, expr, spc) = transInlineValue(expr0, None, cpsA)
           (stms, updateSynthFlag(copy.Return(tree, expr)), spc)
 
         case Throw(expr0) =>
-          val (stms, expr, spc) = transInlineValue(expr0, cpsA)
+          val (stms, expr, spc) = transInlineValue(expr0, None, cpsA)
           (stms, updateSynthFlag(copy.Throw(tree, expr)), spc)
 
         case Typed(expr0, tpt) =>
           // TODO: should x: A @cps[B,C] have a special meaning?
-          val (stms, expr, spc) = transInlineValue(expr0, cpsA)
+          val (stms, expr, spc) = transInlineValue(expr0, None, cpsA) // FIXME: declared type here
           (stms, updateSynthFlag(copy.Typed(tree, expr, tpt)), spc)
 
         case TypeApply(fun, args) =>
-          val (stms, expr, spc) = transInlineValue(fun, cpsA)
+          val (stms, expr, spc) = transInlineValue(fun, None, cpsA)
           (stms, updateSynthFlag(copy.TypeApply(tree, expr, args)), spc)
 
         case Select(qual, name) =>
-          val (stms, expr, spc) = transInlineValue(qual, cpsA)
+          val (stms, expr, spc) = transInlineValue(qual, None, cpsA)
           (stms, updateSynthFlag(copy.Select(tree, expr, name)), spc)
 
         case Apply(fun, args) =>
-          val (funStm, funExpr, funSpc) = transInlineValue(fun, cpsA)
+          val (funStm, funExpr, funSpc) = transInlineValue(fun, None, cpsA)
           val (argStm, argExpr, argSpc) = transArgList(fun, args, funSpc)
 
           (funStm ::: List.flatten(argStm), updateSynthFlag(copy.Apply(tree, funExpr, argExpr)),
             argSpc)
 
+        case ff @ Function(vparams, body) => {
+          cpsAllowed = true
+          declaredType match {
+            case Some(functionType) if isFunctionType(functionType) => {
+              functionType.normalize match {
+                case TypeRef(pre, sym, args) => {
+                  if (args.isEmpty) println(pre + "/" + sym + "/" + args)
+                  val retType = args(args.length-1)
+                  val answerTypeAnnotation = getAnswerTypeAnn(retType)
+                  atOwner(ff.symbol) {
+                    val body1 = transExpr(body, Some(retType), None, answerTypeAnnotation) // FIXME: declared type here
+                    val ff1 = copy.Function(ff, transformValDefs(vparams), body1)
+                    ff1.tpe = ff1.tpe match {
+                      case TypeRef(fpre, fsym, fargs) => {
+                        TypeRef(fpre, fsym, fargs.take(fargs.length-1) ++ List(retType))
+                      }
+                    }
+                    (Nil, ff1, cpsA)
+                  }
+                }
+                // FIXME: allow MatchError?
+              }
+            }
+            case _ => {
+              atOwner(ff.symbol) {
+                val body1 = transExpr(body, None, None, getAnswerTypeAnn(body.tpe))    
+                (Nil, copy.Function(ff, transformValDefs(vparams), body1), cpsA)
+              }
+            }
+          }
+        }
+
         case _ =>
+          log("transValue: _ @ " + tree.getClass.getName)
           cpsAllowed = true
           (Nil, transform(tree), cpsA)
       }
     }
     
-    def transTailValue(tree: Tree, cpsA: CPSInfo, cpsR: CPSInfo): (List[Tree], Tree) = {
+    def transTailValue(tree: Tree, declaredType: Option[Type], cpsA: CPSInfo, cpsR: CPSInfo): (List[Tree], Tree) = {
       
-      val (stms, expr, spc) = transValue(tree, cpsA, cpsR)
+      val (stms, expr, spc) = transValue(tree, declaredType, cpsA, cpsR)
 
       val bot = linearize(spc, getAnswerTypeAnn(expr.tpe))
 
@@ -287,9 +308,9 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
       (stms, expr)
     }
     
-    def transInlineValue(tree: Tree, cpsA: CPSInfo): (List[Tree], Tree, CPSInfo) = {
+    def transInlineValue(tree: Tree, declaredType: Option[Type], cpsA: CPSInfo): (List[Tree], Tree, CPSInfo) = {
 
-      val (stms, expr, spc) = transValue(tree, cpsA, None) // never required to be cps
+      val (stms, expr, spc) = transValue(tree, declaredType, cpsA, None) // never required to be cps
 
       getAnswerTypeAnn(expr.tpe) match {
         case spcVal @ Some(_) =>
@@ -323,7 +344,9 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
         // FIXME:: problem if lhs is not a plain symbol (like val Elem(x,y) = ...)
 
         case tree @ ValDef(mods, name, tpt, rhs) =>
-          val (stms, anfRhs, spc) = atOwner(tree.symbol) { transValue(rhs, cpsA, None) }
+          val (stms, anfRhs, spc) = atOwner(tree.symbol) {
+            transValue(rhs, Some(tpt.tpe), cpsA, None)
+          }
         
           val tv = new ChangeOwnerTraverser(tree.symbol, currentOwner)
           stms.foreach(tv.traverse(_))
@@ -340,21 +363,21 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
           (stms:::List(copy.ValDef(tree, mods, name, tpt, anfRhs)), linearize(spc, spcVal))
 
         case _ =>
-          val (headStms, headExpr, headSpc) = transInlineValue(stm, cpsA)
+          val (headStms, headExpr, headSpc) = transInlineValue(stm, None, cpsA)
           val valSpc = getAnswerTypeAnn(headExpr.tpe)
           (headStms:::List(headExpr), linearize(headSpc, valSpc))
       }
     }
 
-    def transBlock(stms: List[Tree], expr: Tree, cpsA: CPSInfo, cpsR: CPSInfo): (List[Tree], Tree) = {
+    def transBlock(stms: List[Tree], expr: Tree, declaredType: Option[Type], cpsA: CPSInfo, cpsR: CPSInfo): (List[Tree], Tree) = {
       stms match {
         case Nil =>
-          transTailValue(expr, cpsA, cpsR)
+          transTailValue(expr, declaredType, cpsA, cpsR)
 
         case stm::rest =>
           var (rest2, expr2) = (rest, expr)
           val (headStms, headSpc) = transInlineStm(stm, cpsA)
-          val (restStms, restExpr) = transBlock(rest2, expr2, headSpc, cpsR)
+          val (restStms, restExpr) = transBlock(rest2, expr2, declaredType, headSpc, cpsR)
           (headStms:::restStms, restExpr)
        }
     }

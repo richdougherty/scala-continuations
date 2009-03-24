@@ -11,7 +11,7 @@ import scala.continuations._
 import scala.continuations.ControlContext._
 import scala.io.channels._
 
-object RichTest3Channels {
+object RichTest4Channels {
 
   def main(args: Array[String]) {
     for (i <- 0 until 100) { openClose(i.toString) }

@@ -11,20 +11,23 @@ import scala.io.iteratee._
 object ChannelIteration {
 
   def read[A](selector: ASelector, channel: SelectableChannel with ReadableByteChannel, bufferSize: Int, iteratee: Iteratee[Binary,Byte,A]): IEDone[Binary,Byte,A] @suspendable = {
-    println("ChannelIteration.read called")
+    //println(scala.actors.Actor.self + ": ChannelIteration.read called")
     val binaryReader = new BinaryReader(selector, channel, bufferSize) // XXX: Not thread-safe, so iteratee should only call IEConts once.
     def read0(iteratee0: Iteratee[Binary,Byte,A]): IEDone[Binary,Byte,A] @suspendable = {
       iteratee0 match {
         case d @ IEDone(_, _) => {
+          //println(scala.actors.Actor.self + ": ChannelIteration.read: got IEDone, closing channel.")
           channel.close
           d
         }
         case IECont(k) => {
+          //println(scala.actors.Actor.self + ": ChannelIteration.read: Got IECont, reading from BinaryReader.")
           val binary = binaryReader.read
           // XXX: Need try/catch block to generate StreamError, but not yet supported by selectivecps.
           val streamEvent = if (binary.isEmpty) StreamEnd else Chunk(binary)
-          println("Sending StreamEvent to cont: " + streamEvent)
+          //println(scala.actors.Actor.self + ": ChannelIteration.read: Sending StreamEvent to IECont: " + streamEvent)
           val nextIteratee = k(streamEvent)
+          //println(scala.actors.Actor.self + ": ChannelIteration.read: Reading into next iteratee")
           read0(nextIteratee)
         }
       }
@@ -37,11 +40,13 @@ object ChannelIteration {
     def step(str: StreamEvent[Binary]): Iteratee[Binary,Byte,Unit] @suspendable = {
       str match {
         case Chunk(binary) => {
+          //println(scala.actors.Actor.self + ": ChannelIteration.write: putting chunk in IECont")
           // XXX: Need try/catch block to generate IEDone with StreamError, but not yet supported by selectivecps.
           binaryWriter.write(binary)
           IECont(step(_))
         }
         case _ => {
+          //println(scala.actors.Actor.self + ": ChannelIteration.write: closing")
           channel.close
           IEDone((), str)
         }
@@ -54,9 +59,9 @@ object ChannelIteration {
     val reader = new IterateeReader
     Actor.actor {
       reset {
-        println("Reading tail of reader")
+        //println(scala.actors.Actor.self + ": ChannelIteration.reader: Getting tail of reader")
         val readerTail = reader.tail.apply
-        println("Got tail of reader")
+        //println(scala.actors.Actor.self + ": ChannelIteration.reader: Got tail of reader, starting read.")
         read(selector, channel, bufferSize, readerTail)
         ()
       }

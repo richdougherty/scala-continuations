@@ -17,13 +17,16 @@ class APromise[A] extends AFuture[A] {
 
   def apply: A @cps[Unit,Nothing] = {
     ActorSuspender.shiftSuspendable { (suspendable: Suspendable[A]) =>
+      //println(scala.actors.Actor.self + ": promise.apply: before sync")
       synchronized {
         state match {
           case Unset(pending) => {
+            //println(scala.actors.Actor.self + ": promise.apply: suspending until value ready")
             state = Unset(pending.enqueue(suspendable))
             suspendable.suspend
           }
           case Set(result) => {
+            //println(scala.actors.Actor.self + ": promise.apply: value already set")
             suspendable.transferWithResult(result)
           }
         }
@@ -33,16 +36,21 @@ class APromise[A] extends AFuture[A] {
 
   def set(x: A): Unit = setResult(Right(x))
 
-  def setResult(result: Either[Throwable,A]): Unit = synchronized {
+  def setResult(result: Either[Throwable,A]): Unit = {
+    //println(scala.actors.Actor.self + ": promise.setResult: before sync")
+    synchronized {
     state match {
       case Unset(pending) => {
+        //println(scala.actors.Actor.self + ": promise.setResult: setting")
         state = Set(result)
         for (suspendable <- pending) {
+          //println(scala.actors.Actor.self + ": promise.setResult: resuming")
           suspendable.resumeWithResult(result)
         }
       }
       case s => throw new IllegalStateException(s.toString)
     }
+  }
   }
 
   def isSet: Boolean = synchronized {

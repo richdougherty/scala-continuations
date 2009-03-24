@@ -13,6 +13,7 @@ final class BinaryWriter(selector: ASelector, channel: SelectableChannel with Wr
 
   private def writeBuffer(buffer: ByteBuffer): Unit @suspendable = {
     if (buffer.hasRemaining) {
+      //println(scala.actors.Actor.self + ": Writing binary's buffer")
       AOperations.write(selector, channel, buffer)
       writeBuffer(buffer)
     } else ()
@@ -20,9 +21,10 @@ final class BinaryWriter(selector: ASelector, channel: SelectableChannel with Wr
 
   def write(binary: Binary): Unit @suspendable = {
     // XXX: Manual foreach until cps conversion handles properly
+    //println(scala.actors.Actor.self + ": Writing binary: " + binary)
     def foreach0[A](i: Iterator[A])(body: A => Unit @suspendable): Unit @suspendable = {
       if (i.hasNext) {
-        body
+        body(i.next)
         foreach0(i)(body)
       } else ()
     }

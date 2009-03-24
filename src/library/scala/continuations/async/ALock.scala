@@ -22,19 +22,21 @@ class ALock {
 
   def lock = {
     ActorSuspender.shiftSuspendable { (suspendable: Suspendable[Unit]) =>
+      //println(scala.actors.Actor.self + ": " + this + ".lock: before synchronized")
       synchronized {
         state match {
           case Unlocked => {
             state = Locked(Queue.Empty)
-            //println("lock: was unlocked, returning")
-            suspendable.transfer(())
+            //println(scala.actors.Actor.self + ": " + this + ".lock: was unlocked, continuing")
+            suspendable.resume(())
           }
           case Locked(q) => {
             state = Locked(q.enqueue(suspendable))
-            //println("lock: was locked, queueing and suspending")
-            suspendable.suspend
+            //println(scala.actors.Actor.self + ": " + this + ".lock: was locked, queueing and suspending")
           }
         }
+        //println(scala.actors.Actor.self + ": " + this + ".lock: after synchronized")
+        suspendable.suspend
       }
     }
   }
@@ -56,11 +58,11 @@ class ALock {
       case Locked(q) => {
         if (q.isEmpty) {
           state = Unlocked
-          //println("unlock: nothing queued")
+          //println(scala.actors.Actor.self + ": " + this + ".unlock: nothing queued")
         } else {
           val (suspendable, newQ) = q.dequeue
           state = Locked(newQ)
-          //println("unlock: resuming queued task")
+          //println(scala.actors.Actor.self + ": " + this + ".unlock: resuming queued task")
           suspendable.resume(())
         }
       }
@@ -69,30 +71,30 @@ class ALock {
   }
 
   // TODO: Actually implement this.
+  /*
   def sync[A](body: => A @suspendable): A @suspendable = {
     lock
     val result = body
     unlock
     result
   }
+  */
   
-  /*
   def sync[A,B](body: => A @cps[B,B]): A @cps[B,B] = {
     shift2 { (ret: A => B, thr: Throwable => B) =>
       reset {
-        println("sync: claiming lock")
+        //println(scala.actors.Actor.self + ": " + this + ".sync: claiming lock")
         lock
-        println("sync: building ret0 and thr0")
+        //println(scala.actors.Actor.self + ": " + this + ".sync: building ret0 and thr0")
         val ret0 = { x: A => Result.send(ret, thr) { unlock ; x } }
         val thr0 = { t: Throwable => Result.send(thr, thr) { unlock ; t } }
-        println("sync: calling relay")
+        //println(scala.actors.Actor.self + ": " + this + ".sync: calling relay")
         relay(ret0, thr0) {
-          println("sync: executing body")
+          //println(scala.actors.Actor.self + ": " + this + ".sync: executing body")
           body
           //println("sync: finished executing body")
         }
       }
     }
   }
-  */
 }

@@ -11,6 +11,7 @@ class IterateeWriter(first: Iteratee[Binary,Byte,Any]) {
 
   sealed trait State
   case class Open(next: IECont[Binary,Byte,Any]) extends State
+  case class Running(pending: Suspendable[IECont[Binary,Byte,Any]]) extends State
   case object Closed extends State
 
   val lock = new ALock

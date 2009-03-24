@@ -16,6 +16,7 @@ final class BinaryReader(selector: ASelector, channel: SelectableChannel with Re
 
   // Returns Binary.empty if stream finished
   def read: Binary @suspendable = {
+    //println(scala.actors.Actor.self + ": BinaryReader.read")
     if (buffer == null) { buffer = ByteBuffer.allocate(bufferSize) }
     val readLength = AOperations.read(selector, channel, buffer)
     readLength match {
